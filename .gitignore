@@ -1,0 +1,11 @@
+# 仮想環境
+.venv/
+venv/
+__pycache__/
+
+# 環境変数
+.env
+
+# Playwright関連
+test-results/
+playwright-report/
