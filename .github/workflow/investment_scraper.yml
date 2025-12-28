@@ -1,0 +1,41 @@
+name: Investment Scraper (Nomura/DC)
+
+on:
+  schedule:
+    - cron: '0 0 1,15 * *'
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          pip install playwright supabase python-dotenv
+          playwright install chromium
+
+      - name: Run Nomura Scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          NOMURA_LOGIN_ID: ${{ secrets.NOMURA_LOGIN_ID }}
+          NOMURA_PASSWORD: ${{ secrets.NOMURA_PASSWORD }}
+        run: python collectors/nomura_scraper.py
+
+      - name: Run DC Pension Scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          PENSION_START_URL: ${{ secrets.PENSION_START_URL }}
+          PENSION_ACCOUNT_ID: ${{ secrets.PENSION_ACCOUNT_ID }}
+          PENSION_PASSWORD: ${{ secrets.PENSION_PASSWORD }}
+        run: python collectors/dc_scraper.py
