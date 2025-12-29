@@ -107,7 +107,7 @@ export async function predictCategories(descriptions: string[]) {
 export async function getCategories() {
   const { data, error } = await supabase
     .from('categories')
-    .select('id, name')
+    .select('*') // 'id, name' から '*' に変更
     .order('id')
   
   if (error) return []
