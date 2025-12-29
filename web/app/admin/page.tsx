@@ -1,25 +1,42 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getJobStatuses, getSystemLogs } from '@/app/actions'
-import { Card, CardBody, Button, Chip, Tabs, Tab, ScrollShadow, Spinner } from "@nextui-org/react"
-import { Activity, FileText, RefreshCw, Server, AlertCircle, CheckCircle2, Clock } from 'lucide-react'
+import { getJobStatuses, getSystemLogs, getCategories, createCategory, updateCategory, deleteCategory } from '@/app/actions'
+import { Card, CardBody, Button, Chip, Tabs, Tab, ScrollShadow, Spinner, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, Select, SelectItem, useDisclosure, Textarea } from "@nextui-org/react"
+import { Activity, FileText, RefreshCw, Server, AlertCircle, CheckCircle2, Clock, Tag, Plus, Pencil, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from "sonner"
+
+type Category = {
+  id: number
+  name: string
+  type: 'income' | 'expense'
+  keywords: string[] | null
+}
 
 export default function AdminPage() {
   const [jobs, setJobs] = useState<any[]>([])
   const [logs, setLogs] = useState<any[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
+  
+  // カテゴリ編集モーダル用
+  const {isOpen, onOpen, onOpenChange} = useDisclosure()
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null)
+  const [catName, setCatName] = useState("")
+  const [catType, setCatType] = useState<'income' | 'expense'>("expense")
+  const [catKeywords, setCatKeywords] = useState("")
 
   const loadData = async () => {
     setLoading(true)
-    const [jobsData, logsData] = await Promise.all([
+    const [jobsData, logsData, catsData] = await Promise.all([
       getJobStatuses(),
-      getSystemLogs()
+      getSystemLogs(),
+      getCategories()
     ])
     setJobs(jobsData || [])
     setLogs(logsData || [])
+    setCategories(catsData || [])
     setLoading(false)
   }
 
@@ -27,7 +44,57 @@ export default function AdminPage() {
     loadData()
   }, [])
 
-  // ステータスに応じたアイコンと色
+  // カテゴリ追加・編集ハンドラ
+  const handleOpenModal = (category?: Category) => {
+    if (category) {
+      setEditingCategory(category)
+      setCatName(category.name)
+      setCatType(category.type)
+      setCatKeywords(category.keywords?.join(", ") || "")
+    } else {
+      setEditingCategory(null)
+      setCatName("")
+      setCatType("expense")
+      setCatKeywords("")
+    }
+    onOpen()
+  }
+
+  const handleSaveCategory = async (onClose: () => void) => {
+    if (!catName) {
+      toast.error("カテゴリ名は必須です")
+      return
+    }
+    
+    // キーワードを配列に変換
+    const keywordsArray = catKeywords.split(",").map(k => k.trim()).filter(k => k !== "")
+
+    try {
+      if (editingCategory) {
+        await updateCategory(editingCategory.id, catName, catType, keywordsArray)
+        toast.success("カテゴリを更新しました")
+      } else {
+        await createCategory(catName, catType, keywordsArray)
+        toast.success("カテゴリを作成しました")
+      }
+      loadData()
+      onClose()
+    } catch (e: any) {
+      toast.error(e.message || "エラーが発生しました")
+    }
+  }
+
+  const handleDeleteCategory = async (id: number) => {
+    if (!confirm("本当に削除しますか？使用中のカテゴリは削除できません。")) return
+    try {
+      await deleteCategory(id)
+      toast.success("削除しました")
+      loadData()
+    } catch (e: any) {
+      toast.error(e.message)
+    }
+  }
+
   const getStatusInfo = (status: string) => {
     switch(status) {
       case 'success': return { icon: <CheckCircle2 className="w-4 h-4" />, color: "success" as const }
@@ -49,6 +116,54 @@ export default function AdminPage() {
       <div className="p-4 max-w-md mx-auto">
         <Tabs aria-label="Admin Options" className="w-full" fullWidth>
           
+          {/* --- カテゴリ管理タブ (新規) --- */}
+          <Tab key="categories" title={
+            <div className="flex items-center space-x-2">
+              <Tag className="w-4 h-4" />
+              <span>Categories</span>
+            </div>
+          }>
+            <div className="mt-4 space-y-4 pb-20">
+              <Button 
+                className="w-full bg-foreground text-background font-medium" 
+                startContent={<Plus className="w-4 h-4" />}
+                onPress={() => handleOpenModal()}
+              >
+                新規カテゴリ追加
+              </Button>
+
+              <ScrollShadow className="h-[calc(100vh-280px)]">
+                <div className="space-y-2">
+                  {categories.map((cat) => (
+                    <Card key={cat.id} className="shadow-sm border border-divider">
+                      <CardBody className="p-3 flex flex-row justify-between items-center">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold">{cat.name}</span>
+                            <Chip size="sm" variant="flat" color={cat.type === 'expense' ? "danger" : "success"}>
+                              {cat.type === 'expense' ? '支出' : '収入'}
+                            </Chip>
+                          </div>
+                          <p className="text-tiny text-default-400 mt-1 line-clamp-1">
+                            {cat.keywords?.join(", ")}
+                          </p>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button isIconOnly size="sm" variant="light" onPress={() => handleOpenModal(cat)}>
+                            <Pencil className="w-4 h-4 text-default-500" />
+                          </Button>
+                          <Button isIconOnly size="sm" variant="light" color="danger" onPress={() => handleDeleteCategory(cat.id)}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </CardBody>
+                    </Card>
+                  ))}
+                </div>
+              </ScrollShadow>
+            </div>
+          </Tab>
+
           {/* --- ジョブ監視タブ --- */}
           <Tab key="jobs" title={
             <div className="flex items-center space-x-2">
@@ -58,7 +173,6 @@ export default function AdminPage() {
           }>
             <div className="space-y-3 mt-4">
               {loading ? <div className="flex justify-center py-10"><Spinner /></div> : 
-               jobs.length === 0 ? <p className="text-center text-default-500 py-10">No jobs recorded.</p> :
                jobs.map((job) => {
                  const { icon, color } = getStatusInfo(job.last_status)
                  return (
@@ -77,8 +191,6 @@ export default function AdminPage() {
                          <span className="text-small font-mono text-default-600">
                            {job.last_run_at ? format(new Date(job.last_run_at), 'MM/dd HH:mm') : 'Never'}
                          </span>
-                         {/* 将来的にここに「実行」ボタンを配置 */}
-                         {/* <Button size="sm" variant="ghost">Run Now</Button> */}
                        </div>
                        {job.message && (
                          <div className="mt-3 p-2 bg-default-100 rounded-md text-tiny font-mono text-default-600 truncate">
@@ -102,9 +214,7 @@ export default function AdminPage() {
           }>
             <ScrollShadow className="h-[calc(100vh-200px)] mt-4">
               <div className="space-y-2 pb-20">
-                {loading ? <div className="flex justify-center py-10"><Spinner /></div> :
-                 logs.length === 0 ? <p className="text-center text-default-500 py-10">No logs found.</p> :
-                 logs.map((log) => (
+                {logs.map((log) => (
                    <div key={log.id} className="flex gap-3 p-3 border-b border-divider last:border-none">
                      <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${
                        log.level === 'error' ? 'bg-danger' : 
@@ -129,6 +239,47 @@ export default function AdminPage() {
           </Tab>
         </Tabs>
       </div>
+
+      {/* カテゴリ編集モーダル */}
+      <Modal isOpen={isOpen} onOpenChange={onOpenChange} placement="center" backdrop="blur" classNames={{base: "m-4"}}>
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">カテゴリ{editingCategory ? '編集' : '追加'}</ModalHeader>
+              <ModalBody>
+                <Input
+                  label="カテゴリ名"
+                  placeholder="例: 食費"
+                  variant="bordered"
+                  value={catName}
+                  onValueChange={setCatName}
+                />
+                <Select
+                  label="収支タイプ"
+                  variant="bordered"
+                  selectedKeys={[catType]}
+                  onChange={(e) => setCatType(e.target.value as any)}
+                >
+                  <SelectItem key="expense" value="expense">支出 (Expense)</SelectItem>
+                  <SelectItem key="income" value="income">収入 (Income)</SelectItem>
+                </Select>
+                <Textarea
+                  label="AI用キーワード"
+                  placeholder="スーパー, コンビニ (カンマ区切り)"
+                  variant="bordered"
+                  value={catKeywords}
+                  onValueChange={setCatKeywords}
+                  description="AI自動分類のヒントになります"
+                />
+              </ModalBody>
+              <ModalFooter>
+                <Button color="danger" variant="light" onPress={onClose}>キャンセル</Button>
+                <Button color="primary" onPress={() => handleSaveCategory(onClose)}>保存</Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
     </main>
   )
 }

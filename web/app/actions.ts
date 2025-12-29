@@ -183,37 +183,39 @@ export async function getSystemLogs() {
   return data
 }
 
-// --- 9. ダッシュボード: 資産推移データの取得 ---
-export async function getAssetHistory() {
-  const { data, error } = await supabase
-    .from('monthly_balances')
-    // accountsテーブルから is_liability を結合して取得
-    .select('record_date, amount, accounts(is_liability)')
-    .order('record_date', { ascending: true })
-
-  if (error) {
-    console.error("Error fetching asset history:", error)
-    return []
-  }
-
-  // 日付ごとに純資産を合計する
-  const historyMap = data.reduce((acc, cur) => {
-    const date = cur.record_date
-    if (!acc[date]) {
-      acc[date] = 0
-    }
-    
-    // 【修正】 accountsはオブジェクトではなく配列なので、最初の要素(.accounts[0])を見る
-    const isLiability = Array.isArray(cur.accounts) ? cur.accounts[0]?.is_liability : cur.accounts?.is_liability
-    
-    const value = isLiability ? -cur.amount : cur.amount
-    acc[date] += value
-    return acc
-  }, {} as Record<string, number>)
-
-  return Object.entries(historyMap).map(([date, total]) => ({
-    date,
-    total,
-  }))
+// --- 9. カテゴリ管理アクション ---
+export async function createCategory(name: string, type: 'income' | 'expense', keywords: string[]) {
+  const { error } = await supabase
+    .from('categories')
+    .insert({ name, type, keywords })
+  
+  if (error) throw new Error(error.message)
+  revalidatePath('/inbox')
+  revalidatePath('/admin')
+  return { success: true }
 }
 
+export async function updateCategory(id: number, name: string, type: 'income' | 'expense', keywords: string[]) {
+  const { error } = await supabase
+    .from('categories')
+    .update({ name, type, keywords })
+    .eq('id', id)
+
+  if (error) throw new Error(error.message)
+  revalidatePath('/inbox')
+  revalidatePath('/admin')
+  return { success: true }
+}
+
+export async function deleteCategory(id: number) {
+  // 使用中のカテゴリを削除しようとするとDB制約エラーになります
+  const { error } = await supabase
+    .from('categories')
+    .delete()
+    .eq('id', id)
+
+  if (error) throw new Error("使用中のカテゴリは削除できません")
+  revalidatePath('/inbox')
+  revalidatePath('/admin')
+  return { success: true }
+}
