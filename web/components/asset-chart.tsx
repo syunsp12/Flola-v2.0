@@ -65,7 +65,7 @@ export function AssetChart({ data }: Props) {
                 borderRadius: '0.5rem',
                 fontSize: '12px',
               }}
-              formatter={(value: number) => [`¥${value.toLocaleString()}`, "Net Worth"]}
+              formatter={(value: any) => [`¥${Number(value).toLocaleString()}`, "Net Worth"]}
             />
             <Area type="monotone" dataKey="total" stroke="#006FEE" fill="#60A5FA" fillOpacity={0.2} />
           </AreaChart>
