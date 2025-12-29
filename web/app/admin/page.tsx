@@ -2,16 +2,37 @@
 
 import { useEffect, useState } from 'react'
 import { getJobStatuses, getSystemLogs, getCategories, createCategory, updateCategory, deleteCategory } from '@/app/actions'
-import { Card, CardBody, Button, Chip, Tabs, Tab, ScrollShadow, Spinner, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, Select, SelectItem, useDisclosure, Textarea, RadioGroup, Radio } from "@nextui-org/react"
-import { Activity, FileText, RefreshCw, Server, AlertCircle, CheckCircle2, Clock, Tag, Plus, Pencil, Trash2 } from 'lucide-react'
+import { Card, CardBody, Button, Chip, Tabs, Tab, ScrollShadow, Spinner, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, useDisclosure, Textarea, RadioGroup, Radio, cn } from "@nextui-org/react"
+import { Activity, FileText, RefreshCw, Server, AlertCircle, CheckCircle2, Clock, Tag, Plus, Pencil, Trash2, ArrowUpCircle, ArrowDownCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from "sonner"
 
+// --- 型定義 ---
 type Category = {
   id: number
   name: string
   type: 'income' | 'expense'
   keywords: string[] | null
+}
+
+// --- モダンなラジオボタン用コンポーネント ---
+export const CustomRadio = (props: any) => {
+  const {children, ...otherProps} = props
+
+  return (
+    <Radio
+      {...otherProps}
+      classNames={{
+        base: cn(
+          "inline-flex m-0 bg-content1 hover:bg-content2 items-center justify-between",
+          "flex-row-reverse max-w-[300px] cursor-pointer rounded-lg gap-4 p-4 border-2 border-transparent",
+          "data-[selected=true]:border-primary"
+        ),
+      }}
+    >
+      {children}
+    </Radio>
+  )
 }
 
 export default function AdminPage() {
@@ -23,6 +44,8 @@ export default function AdminPage() {
   // カテゴリ編集モーダル用
   const {isOpen, onOpen, onOpenChange} = useDisclosure()
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
+  
+  // フォームステート
   const [catName, setCatName] = useState("")
   const [catType, setCatType] = useState<'income' | 'expense'>("expense")
   const [catKeywords, setCatKeywords] = useState("")
@@ -44,7 +67,7 @@ export default function AdminPage() {
     loadData()
   }, [])
 
-  // カテゴリ追加・編集ハンドラ
+  // モーダルオープン時の処理
   const handleOpenModal = (category?: Category) => {
     if (category) {
       setEditingCategory(category)
@@ -60,6 +83,7 @@ export default function AdminPage() {
     onOpen()
   }
 
+  // 保存処理
   const handleSaveCategory = async (onClose: () => void) => {
     if (!catName) {
       toast.error("カテゴリ名は必須です")
@@ -84,6 +108,7 @@ export default function AdminPage() {
     }
   }
 
+  // 削除処理
   const handleDeleteCategory = async (id: number) => {
     if (!confirm("本当に削除しますか？使用中のカテゴリは削除できません。")) return
     try {
@@ -95,6 +120,7 @@ export default function AdminPage() {
     }
   }
 
+  // ステータス表示ヘルパー
   const getStatusInfo = (status: string) => {
     switch(status) {
       case 'success': return { icon: <CheckCircle2 className="w-4 h-4" />, color: "success" as const }
@@ -116,7 +142,7 @@ export default function AdminPage() {
       <div className="p-4 max-w-md mx-auto">
         <Tabs aria-label="Admin Options" className="w-full" fullWidth>
           
-          {/* --- カテゴリ管理タブ (新規) --- */}
+          {/* --- カテゴリ管理タブ --- */}
           <Tab key="categories" title={
             <div className="flex items-center space-x-2">
               <Tag className="w-4 h-4" />
@@ -125,7 +151,7 @@ export default function AdminPage() {
           }>
             <div className="mt-4 space-y-4 pb-20">
               <Button 
-                className="w-full bg-foreground text-background font-medium" 
+                className="w-full bg-foreground text-background font-medium shadow-md" 
                 startContent={<Plus className="w-4 h-4" />}
                 onPress={() => handleOpenModal()}
               >
@@ -240,6 +266,7 @@ export default function AdminPage() {
         </Tabs>
       </div>
 
+      {/* カテゴリ編集モーダル */}
       <Modal 
         isOpen={isOpen} 
         onOpenChange={onOpenChange} 
@@ -255,7 +282,7 @@ export default function AdminPage() {
               </ModalHeader>
               
               <ModalBody className="py-6">
-                <div className="space-y-6"> {/* 余白を少し広げました */}
+                <div className="space-y-6">
                   
                   {/* カテゴリ名 */}
                   <div className="space-y-2">
@@ -266,36 +293,39 @@ export default function AdminPage() {
                       size="lg"
                       value={catName}
                       onValueChange={setCatName}
-                      classNames={{
-                        input: "text-medium",
-                      }}
+                      classNames={{ input: "text-medium" }}
                     />
                   </div>
 
-                  {/* 収支タイプ (ラジオボタンに変更) */}
+                  {/* 収支タイプ (モダンなカード型ラジオボタン) */}
                   <div className="space-y-2">
                     <label className="text-small font-bold text-foreground">収支タイプ</label>
                     <RadioGroup
                       orientation="horizontal"
                       value={catType}
                       onValueChange={(val) => setCatType(val as 'income' | 'expense')}
-                      classNames={{
-                        wrapper: "gap-4"
-                      }}
+                      classNames={{ wrapper: "gap-3" }}
                     >
-                      <Radio value="expense" color="danger">
-                        支出 (Expense)
-                      </Radio>
-                      <Radio value="income" color="success">
-                        収入 (Income)
-                      </Radio>
+                      <CustomRadio value="expense" description="お金が出ていく取引" color="danger">
+                        <div className="flex items-center gap-2">
+                          <ArrowUpCircle className="w-5 h-5 text-danger" />
+                          <span className="text-danger font-bold">支出 (Expense)</span>
+                        </div>
+                      </CustomRadio>
+                      <CustomRadio value="income" description="お金が入ってくる取引" color="success">
+                        <div className="flex items-center gap-2">
+                          <ArrowDownCircle className="w-5 h-5 text-success" />
+                          <span className="text-success font-bold">収入 (Income)</span>
+                        </div>
+                      </CustomRadio>
                     </RadioGroup>
                   </div>
 
-                  {/* AI用キーワード (テキストエリア) */}
+                  {/* AI用キーワード */}
                   <div className="space-y-2">
                     <div className="flex justify-between items-end">
                       <label className="text-small font-bold text-foreground">AI用キーワード</label>
+                      <span className="text-tiny text-default-400">カンマ(,)区切り</span>
                     </div>
                     <Textarea
                       placeholder="スーパー, コンビニ, マクドナルド"
@@ -304,9 +334,7 @@ export default function AdminPage() {
                       minRows={3}
                       value={catKeywords}
                       onValueChange={setCatKeywords}
-                      classNames={{
-                        input: "text-medium leading-relaxed",
-                      }}
+                      classNames={{ input: "text-medium leading-relaxed" }}
                     />
                     <p className="text-tiny text-default-400 px-1">
                       ※ ここに入力した単語が含まれると、AIがこのカテゴリを優先的に提案します。
@@ -315,7 +343,6 @@ export default function AdminPage() {
 
                 </div>
               </ModalBody>
-
 
               <ModalFooter className="border-t border-divider">
                 <Button color="danger" variant="light" onPress={onClose}>
