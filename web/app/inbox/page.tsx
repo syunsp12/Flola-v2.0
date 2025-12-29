@@ -190,22 +190,32 @@ export default function InboxPage() {
                     isDisabled={t.status === 'confirmed'}
                     variant="bordered"
                     size="sm"
-                    classNames={{
-                      trigger: `min-h-[40px] ${!t.category_id ? 'border-danger text-danger' : ''}`,
-                      value: "text-small font-medium"
+                    // ▼ 修正: ラベルを外に出して重なりを防ぐ
+                    labelPlacement="outside"
+                    // ▼ 修正: ポップアップの背景色と境界線を明示して透過を防ぐ
+                    popoverProps={{
+                      classNames: {
+                        content: "bg-background border border-default-200 shadow-lg"
+                      }
                     }}
+                    classNames={{
+                      trigger: `min-h-[40px] bg-background ${!t.category_id ? 'border-danger text-danger' : ''}`,
+                      value: "text-small font-medium",
+                      innerWrapper: "gap-3", // アイコンとテキストの間隔
+                    }}
+                    // ▼ 修正: AIアイコンがある場合の表示調整
                     startContent={
-                      t.ai_suggested && <Wand2 className="w-3 h-3 text-purple-500" />
+                      t.ai_suggested ? <Wand2 className="w-3 h-3 text-purple-500 shrink-0" /> : undefined
                     }
                   >
                     {categories.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
+                      <SelectItem key={c.id} value={c.id} textValue={c.name}>
                         {c.name}
                       </SelectItem>
                     ))}
                   </Select>
                 </CardBody>
-
+                
                 {t.status === 'pending' && (
                   <>
                     <div className="h-px w-full bg-divider"></div>

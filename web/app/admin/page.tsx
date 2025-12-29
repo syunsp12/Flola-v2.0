@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { getJobStatuses, getSystemLogs, getCategories, createCategory, updateCategory, deleteCategory } from '@/app/actions'
-import { Card, CardBody, Button, Chip, Tabs, Tab, ScrollShadow, Spinner, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, Select, SelectItem, useDisclosure, Textarea } from "@nextui-org/react"
+import { Card, CardBody, Button, Chip, Tabs, Tab, ScrollShadow, Spinner, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, Select, SelectItem, useDisclosure, Textarea, RadioGroup, Radio } from "@nextui-org/react"
 import { Activity, FileText, RefreshCw, Server, AlertCircle, CheckCircle2, Clock, Tag, Plus, Pencil, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from "sonner"
@@ -240,41 +240,90 @@ export default function AdminPage() {
         </Tabs>
       </div>
 
-      {/* カテゴリ編集モーダル */}
-      <Modal isOpen={isOpen} onOpenChange={onOpenChange} placement="center" backdrop="blur" classNames={{base: "m-4"}}>
-        <ModalContent>
+      <Modal 
+        isOpen={isOpen} 
+        onOpenChange={onOpenChange} 
+        placement="center" 
+        backdrop="blur" 
+        classNames={{base: "m-4"}}
+      >
+        <ModalContent className="bg-background border border-default-200 shadow-xl">
           {(onClose) => (
             <>
-              <ModalHeader className="flex flex-col gap-1">カテゴリ{editingCategory ? '編集' : '追加'}</ModalHeader>
-              <ModalBody>
-                <Input
-                  label="カテゴリ名"
-                  placeholder="例: 食費"
-                  variant="bordered"
-                  value={catName}
-                  onValueChange={setCatName}
-                />
-                <Select
-                  label="収支タイプ"
-                  variant="bordered"
-                  selectedKeys={[catType]}
-                  onChange={(e) => setCatType(e.target.value as any)}
-                >
-                  <SelectItem key="expense" value="expense">支出 (Expense)</SelectItem>
-                  <SelectItem key="income" value="income">収入 (Income)</SelectItem>
-                </Select>
-                <Textarea
-                  label="AI用キーワード"
-                  placeholder="スーパー, コンビニ (カンマ区切り)"
-                  variant="bordered"
-                  value={catKeywords}
-                  onValueChange={setCatKeywords}
-                  description="AI自動分類のヒントになります"
-                />
+              <ModalHeader className="flex flex-col gap-1 border-b border-divider">
+                カテゴリ{editingCategory ? '編集' : '追加'}
+              </ModalHeader>
+              
+              <ModalBody className="py-6">
+                <div className="space-y-6"> {/* 余白を少し広げました */}
+                  
+                  {/* カテゴリ名 */}
+                  <div className="space-y-2">
+                    <label className="text-small font-bold text-foreground">カテゴリ名</label>
+                    <Input
+                      placeholder="例: 食費"
+                      variant="bordered"
+                      size="lg"
+                      value={catName}
+                      onValueChange={setCatName}
+                      classNames={{
+                        input: "text-medium",
+                      }}
+                    />
+                  </div>
+
+                  {/* 収支タイプ (ラジオボタンに変更) */}
+                  <div className="space-y-2">
+                    <label className="text-small font-bold text-foreground">収支タイプ</label>
+                    <RadioGroup
+                      orientation="horizontal"
+                      value={catType}
+                      onValueChange={(val) => setCatType(val as 'income' | 'expense')}
+                      classNames={{
+                        wrapper: "gap-4"
+                      }}
+                    >
+                      <Radio value="expense" color="danger">
+                        支出 (Expense)
+                      </Radio>
+                      <Radio value="income" color="success">
+                        収入 (Income)
+                      </Radio>
+                    </RadioGroup>
+                  </div>
+
+                  {/* AI用キーワード (テキストエリア) */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-end">
+                      <label className="text-small font-bold text-foreground">AI用キーワード</label>
+                    </div>
+                    <Textarea
+                      placeholder="スーパー, コンビニ, マクドナルド"
+                      variant="bordered"
+                      size="lg"
+                      minRows={3}
+                      value={catKeywords}
+                      onValueChange={setCatKeywords}
+                      classNames={{
+                        input: "text-medium leading-relaxed",
+                      }}
+                    />
+                    <p className="text-tiny text-default-400 px-1">
+                      ※ ここに入力した単語が含まれると、AIがこのカテゴリを優先的に提案します。
+                    </p>
+                  </div>
+
+                </div>
               </ModalBody>
-              <ModalFooter>
-                <Button color="danger" variant="light" onPress={onClose}>キャンセル</Button>
-                <Button color="primary" onPress={() => handleSaveCategory(onClose)}>保存</Button>
+
+
+              <ModalFooter className="border-t border-divider">
+                <Button color="danger" variant="light" onPress={onClose}>
+                  キャンセル
+                </Button>
+                <Button className="bg-foreground text-background font-medium shadow-md" onPress={() => handleSaveCategory(onClose)}>
+                  保存
+                </Button>
               </ModalFooter>
             </>
           )}
