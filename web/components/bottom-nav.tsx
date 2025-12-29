@@ -2,8 +2,8 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Inbox, Landmark, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Home, Inbox, Landmark, Settings, Grid } from 'lucide-react'
 
 export function BottomNav() {
   const pathname = usePathname()
@@ -13,6 +13,7 @@ export function BottomNav() {
     { href: '/inbox', label: 'Inbox', icon: Inbox },
     { href: '/assets', label: 'Assets', icon: Landmark },
     { href: '/admin', label: 'Admin', icon: Settings },
+    { href: '/tools', label: 'Tools', icon: Grid }, 
   ]
 
   return (
