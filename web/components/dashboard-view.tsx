@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Card, Text, Group, SimpleGrid, ThemeIcon, Stack, RingProgress, Paper, Center, Table, Badge, Grid } from "@mantine/core"
+import { Card, Text, Group, SimpleGrid, ThemeIcon, Stack, RingProgress, Paper, Center, Table, Badge, Grid, rem } from "@mantine/core"
 import { Wallet, TrendingUp, TrendingDown, CreditCard, ArrowRight } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { format } from 'date-fns'
@@ -60,7 +60,7 @@ export function DashboardView({ data }: { data: DashboardData }) {
             </Group>
           </Group>
           
-          <Text size={32} fw={800} lh={1.1} style={{ letterSpacing: '-0.5px' }}>
+          <Text size={rem(32)} fw={800} lh={1.1} style={{ letterSpacing: '-0.5px' }}>
             ¥ {data.netWorth.toLocaleString()}
           </Text>
 
@@ -177,7 +177,9 @@ export function DashboardView({ data }: { data: DashboardData }) {
                     <Text size="sm" fw={600} lineClamp={1}>{t.description}</Text>
                     <Group gap={6}>
                       <Text size="xs" c="dimmed">{format(new Date(t.date), 'MM/dd')}</Text>
-                      <Badge size="xs" variant="dot" color="gray">{t.categories?.name || 'Uncategorized'}</Badge>
+                      <Badge size="xs" variant="dot" color="gray">
+                        {(Array.isArray(t.categories) ? t.categories[0]?.name : t.categories?.name) || 'Uncategorized'}
+                      </Badge>
                     </Group>
                   </Table.Td>
                   <Table.Td ta="right" pr="md">

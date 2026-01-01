@@ -81,7 +81,8 @@ async function getDashboardData() {
   let currentMonthTotalExpense = 0
 
   currentMonthExpenses.forEach(t => {
-    const catName = t.categories?.name || '未分類'
+    const categoryData: any = Array.isArray(t.categories) ? t.categories[0] : t.categories
+    const catName = categoryData?.name || '未分類'
     const current = categoryMap.get(catName) || 0
     categoryMap.set(catName, current + t.amount)
     currentMonthTotalExpense += t.amount

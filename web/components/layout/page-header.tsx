@@ -42,7 +42,7 @@ export function PageHeader({
         {/* 左側: ロゴとタイトル (スクロール時はロゴのみ、またはロゴ+タブ) */}
         <Group gap="xs" wrap="nowrap" style={{ flex: isScrolled && tabs ? 1 : 'unset', minWidth: 0 }}>
           <ThemeIcon 
-            size={isScrolled ? 22 : 26} 
+            size={isScrolled ? rem(22) : rem(26)} 
             radius="md" 
             variant="gradient" 
             gradient={{ from: 'indigo', to: 'cyan' }}

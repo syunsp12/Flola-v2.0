@@ -84,7 +84,7 @@ export function BottomNav() {
                 style={{ textDecoration: 'none', flex: 1 }}
               >
                 {item.badge && item.badge > 0 ? (
-                  <Indicator label={item.badge} size={16} color="red" offset={4} withBorder>
+                  <Indicator label={item.badge} size={rem(16)} color="red" offset={4} withBorder>
                     {content}
                   </Indicator>
                 ) : (

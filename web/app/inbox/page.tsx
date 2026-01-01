@@ -23,11 +23,11 @@ import {
   TextInput,
   Tabs
 } from "@mantine/core"
-import { DateInput } from '@mantine/dates'
+import { DatePickerInput } from '@mantine/dates'
 import { useDisclosure } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
 import { Check, X, Wand2, CreditCard, CalendarDays, Search, Plus, PenLine, History, Wallet } from 'lucide-react'
-import { format, subMonths } from 'date-fns'
+import { format } from 'date-fns'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageContainer } from '@/components/layout/page-container'
 
@@ -61,10 +61,13 @@ function TransactionList({
               </Group>
               <Text fw={700} size="lg">¥{t.amount.toLocaleString()}</Text>
               <Text fw={600} size="sm" lineClamp={1}>{t.description}</Text>
-              <Group gap={4}>
-                <CreditCard size={12} color="gray" />
-                <Text size="xs" c="dimmed">{t.accounts?.name || 'Unknown Account'}</Text>
-              </Group>
+                                  <Group gap={4}>
+                                    <CreditCard size={12} color="gray" />
+                                    <Text size="xs" c="dimmed">
+                                      {(Array.isArray(t.accounts) ? t.accounts[0]?.name : t.accounts?.name) || 'Unknown Account'}
+                                    </Text>
+                                  </Group>
+              
             </Stack>
           </Group>
 
@@ -233,10 +236,10 @@ function InboxContent() {
         title="Inbox"
         subtitle={`${transactions.length} items`}
         tabs={
-          <Tabs value={activeTab} onChange={setActiveTab} variant="pills" radius="xl" size="xs">
+          <Tabs value={activeTab} onChange={setActiveTab} variant="pills" radius="xl">
             <Tabs.List grow>
-              <Tabs.Tab value="pending">承認待ち</Tabs.Tab>
-              <Tabs.Tab value="confirmed">確認済み</Tabs.Tab>
+              <Tabs.Tab value="pending" style={{ fontSize: rem(12), fontWeight: 700 }}>承認待ち</Tabs.Tab>
+              <Tabs.Tab value="confirmed" style={{ fontSize: rem(12), fontWeight: 700 }}>確認済み</Tabs.Tab>
             </Tabs.List>
           </Tabs>
         }
@@ -321,10 +324,10 @@ function InboxContent() {
 
         <Modal opened={opened} onClose={close} title="手動入力" centered>
           <Stack gap="md">
-            <DateInput
+            <DatePickerInput
               label="日付"
               value={newDate}
-              onChange={setNewDate}
+              onChange={(val) => setNewDate(val as Date | null)}
               valueFormat="YYYY/MM/DD"
               placeholder="日付を選択"
             />
