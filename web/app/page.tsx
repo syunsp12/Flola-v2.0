@@ -1,5 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { DashboardView } from '@/components/dashboard-view'
+import { PageHeader } from '@/components/layout/page-header'
+import { PageContainer } from '@/components/layout/page-container'
 
 // このページがアクセスされるたびにデータを再取得するように設定
 export const dynamic = 'force-dynamic'
@@ -47,9 +49,12 @@ export default async function DashboardPage() {
   const { totalAssets, totalExpense } = await getSummary()
 
   return (
-    <main className="min-h-screen bg-background pb-20">
-      {/* 取得したデータをClient Componentに渡して描画を任せる */}
-      <DashboardView totalAssets={totalAssets} totalExpense={totalExpense} />
-    </main>
+    <>
+      <PageHeader title="Dashboard" subtitle="Financial Overview" />
+      <PageContainer>
+        {/* 取得したデータをClient Componentに渡して描画を任せる */}
+        <DashboardView totalAssets={totalAssets} totalExpense={totalExpense} />
+      </PageContainer>
+    </>
   )
 }

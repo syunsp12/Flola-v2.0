@@ -184,6 +184,34 @@ export async function deleteCategory(id: number) {
   return { success: true }
 }
 
+// --- 10. 取引の手動作成 ---
+export async function createTransaction(data: {
+  date: string
+  amount: number
+  description: string
+  category_id: number
+  status?: 'confirmed' | 'pending'
+}) {
+  const supabase = await createClient()
+  
+  const { error } = await supabase
+    .from('transactions')
+    .insert({
+      date: data.date,
+      amount: data.amount,
+      description: data.description,
+      category_id: data.category_id,
+      type: 'expense', // デフォルトは支出
+      status: data.status || 'confirmed',
+      // account_id は一旦null (または手動入力用のダミー口座があればそれを指定)
+    })
+
+  if (error) throw new Error(error.message)
+  revalidatePath('/inbox')
+  revalidatePath('/')
+  return { success: true }
+}
+
 // --- AI予測 (ここだけDBを使わないが、カテゴリ取得のために必要) ---
 export async function predictCategories(descriptions: string[]) {
   const apiKey = process.env.GOOGLE_API_KEY
@@ -214,7 +242,7 @@ export async function predictCategories(descriptions: string[]) {
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" })
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" })
     const result = await model.generateContent(prompt)
     const response = await result.response
     const text = response.text().replace(/```json|```/g, '').trim()

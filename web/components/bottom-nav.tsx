@@ -1,9 +1,9 @@
 'use client'
 
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { cn } from '@/lib/utils'
+import Link from 'next/link'
 import { Home, Inbox, Landmark, Settings, Grid } from 'lucide-react'
+import { Paper, Group, Text, Stack, ThemeIcon, rem } from '@mantine/core'
 
 export function BottomNav() {
   const pathname = usePathname()
@@ -12,13 +12,23 @@ export function BottomNav() {
     { href: '/', label: 'Home', icon: Home },
     { href: '/inbox', label: 'Inbox', icon: Inbox },
     { href: '/assets', label: 'Assets', icon: Landmark },
+    { href: '/tools', label: 'Tools', icon: Grid },
     { href: '/admin', label: 'Admin', icon: Settings },
-    { href: '/tools', label: 'Tools', icon: Grid }, 
   ]
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-t border-divider pb-safe">
-      <div className="flex justify-around items-center h-16 max-w-md mx-auto">
+    <Paper 
+      shadow="md" 
+      p={0}
+      pos="fixed" 
+      bottom={0} 
+      left={0} 
+      right={0} 
+      h={80}
+      style={{ zIndex: 100, borderTop: '1px solid var(--mantine-color-gray-2)' }}
+      radius={0}
+    >
+      <Group h="100%" gap={0} justify="space-around" align="center" style={{ maxWidth: 448, margin: '0 auto' }}>
         {items.map((item) => {
           const Icon = item.icon
           const isActive = pathname === item.href
@@ -27,18 +37,27 @@ export function BottomNav() {
             <Link
               key={item.href}
               href={item.href}
-              className={cn(
-                "flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors duration-200",
-                isActive ? "text-primary" : "text-default-500 hover:text-default-900"
-              )}
+              style={{ textDecoration: 'none', flex: 1, height: '100%' }}
             >
-              {/* アイコンの太さを調整して洗練させる */}
-              <Icon strokeWidth={isActive ? 2.5 : 1.5} className="h-6 w-6" />
-              <span className="text-[10px] font-medium tracking-wide">{item.label}</span>
+              <Stack align="center" justify="center" gap={4} h="100%" style={{ 
+                borderTop: isActive ? '3px solid var(--mantine-color-indigo-6)' : '3px solid transparent',
+                transition: 'all 0.2s ease'
+              }}>
+                <ThemeIcon 
+                  variant="transparent" 
+                  color={isActive ? 'indigo' : 'gray'} 
+                  size="lg"
+                >
+                  <Icon style={{ width: rem(24), height: rem(24) }} strokeWidth={isActive ? 2.5 : 1.5} />
+                </ThemeIcon>
+                <Text size="xs" fw={isActive ? 700 : 500} c={isActive ? 'indigo' : 'dimmed'}>
+                  {item.label}
+                </Text>
+              </Stack>
             </Link>
           )
         })}
-      </div>
-    </nav>
+      </Group>
+    </Paper>
   )
 }

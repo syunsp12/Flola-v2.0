@@ -1,11 +1,32 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getTransactions, updateTransaction, predictCategories, getCategories } from '@/app/actions'
-import { Card, CardHeader, CardBody, CardFooter, Button, Chip, Spinner, Select, SelectItem, Input } from "@nextui-org/react"
-import { Check, X, Wand2, CreditCard, CalendarDays, Search } from 'lucide-react'
+import { getTransactions, updateTransaction, predictCategories, getCategories, createTransaction } from '@/app/actions'
+import { 
+  Card, 
+  Text, 
+  Group, 
+  Button, 
+  Badge, 
+  Loader, 
+  Select, 
+  TextInput, 
+  Modal, 
+  NumberInput, 
+  ActionIcon, 
+  Menu,
+  Stack,
+  ThemeIcon,
+  rem,
+  Divider,
+  Grid
+} from "@mantine/core"
+import { useDisclosure } from '@mantine/hooks'
+import { notifications } from '@mantine/notifications'
+import { Check, X, Wand2, CreditCard, CalendarDays, Search, Plus, PenLine, History, Wallet } from 'lucide-react'
 import { format, subMonths } from 'date-fns'
-import { toast } from "sonner"
+import { PageHeader } from '@/components/layout/page-header'
+import { PageContainer } from '@/components/layout/page-container'
 
 type Category = { id: number; name: string }
 
@@ -15,16 +36,23 @@ export default function InboxPage() {
   const [loading, setLoading] = useState(true)
   const [aiLoading, setAiLoading] = useState(false)
 
-  const [statusFilter, setStatusFilter] = useState<'pending' | 'all'>('pending')
+  const [statusFilter, setStatusFilter] = useState<string | null>('pending')
   const [startDate, setStartDate] = useState(format(subMonths(new Date(), 1), 'yyyy-MM-dd'))
   const [endDate, setEndDate] = useState("")
+
+  // 手動入力モーダル用
+  const [opened, { open, close }] = useDisclosure(false)
+  const [newDate, setNewDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [newAmount, setNewAmount] = useState<string | number>('')
+  const [newDescription, setNewDescription] = useState("")
+  const [newCategoryId, setNewCategoryId] = useState<string | null>(null)
 
   const loadData = async () => {
     setLoading(true)
     try {
       const [transData, catData] = await Promise.all([
         getTransactions({ 
-          status: statusFilter,
+          status: (statusFilter as any) || 'all',
           startDate: startDate || undefined,
           endDate: endDate || undefined
         }),
@@ -34,7 +62,7 @@ export default function InboxPage() {
       setTransactions(transData || [])
       if (catData.length > 0) setCategories(catData)
     } catch (e) {
-      toast.error("データの取得に失敗しました")
+      notifications.show({ title: 'Error', message: 'データの取得に失敗しました', color: 'red' })
     }
     setLoading(false)
   }
@@ -59,18 +87,20 @@ export default function InboxPage() {
         }
         return t
       }))
-      toast.success("AI提案を適用しました")
+      notifications.show({ title: 'AI Categorize', message: 'AI提案を適用しました', color: 'green' })
     } else {
-      toast.info("対象となるデータがありません")
+      notifications.show({ title: 'Info', message: '対象となるデータがありません', color: 'blue' })
     }
     setAiLoading(false)
   }
 
   const handleApprove = async (t: any) => {
     if (!t.category_id) {
-      toast.error("カテゴリを選択してください")
+      notifications.show({ message: 'カテゴリを選択してください', color: 'red' })
       return
     }
+    
+    // Optimistic update
     if (statusFilter === 'pending') {
       setTransactions(prev => prev.filter(item => item.id !== t.id))
     } else {
@@ -78,7 +108,7 @@ export default function InboxPage() {
     }
 
     await updateTransaction(t.id, { status: 'confirmed', category_id: t.category_id })
-    toast.success("承認しました")
+    notifications.show({ message: '承認しました', color: 'green' })
   }
 
   const handleIgnore = async (id: string) => {
@@ -86,165 +116,228 @@ export default function InboxPage() {
       setTransactions(prev => prev.filter(item => item.id !== id))
     }
     await updateTransaction(id, { status: 'ignore' })
-    toast.info("除外しました")
+    notifications.show({ message: '除外しました', color: 'gray' })
   }
 
-  const handleCategoryChange = (transactionId: string, newCategoryId: string) => {
+  const handleCategoryChange = (transactionId: string, newCategoryId: string | null) => {
+    if (!newCategoryId) return
     setTransactions(prev => prev.map(t => 
       t.id === transactionId ? { ...t, category_id: Number(newCategoryId), ai_suggested: false } : t
     ))
   }
 
-  return (
-    <main className="min-h-screen bg-background pb-24">
-      {/* フィルタリングヘッダー */}
-      <div className="sticky top-0 z-20 bg-background/80 backdrop-blur-md border-b border-divider px-4 py-3 shadow-sm">
-        <div className="flex flex-col gap-3">
-          <div className="flex justify-between items-center">
-            <h1 className="text-lg font-bold">Inbox</h1>
-            <div className="flex items-center gap-2">
-              <Chip size="sm" variant="flat">{transactions.length}件</Chip>
-              <Button size="sm" isIconOnly variant="light" onPress={loadData}><Search className="w-4 h-4"/></Button>
-            </div>
-          </div>
-          
-          {/* 検索条件エリア */}
-          <div className="flex gap-2 items-center">
-             <Select 
-              size="sm"
-              className="max-w-[140px]"
-              defaultSelectedKeys={[statusFilter]}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
-              aria-label="Filter status"
-            >
-              <SelectItem key="pending" value="pending">未承認のみ</SelectItem>
-              <SelectItem key="all" value="all">すべての履歴</SelectItem>
-            </Select>
-            <div className="flex-1">
-              <Input 
-                type="date" 
-                size="sm"
-                value={startDate}
-                onValueChange={setStartDate}
-                aria-label="Start date"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
+  const handleManualSave = async () => {
+    if (!newAmount || !newDescription || !newCategoryId) {
+      notifications.show({ message: '必須項目を入力してください', color: 'red' })
+      return
+    }
+    try {
+      await createTransaction({
+        date: newDate,
+        amount: Number(newAmount),
+        description: newDescription,
+        category_id: Number(newCategoryId),
+        status: 'confirmed'
+      })
+      notifications.show({ title: 'Success', message: '登録しました', color: 'green' })
+      loadData()
+      // Reset & Close
+      setNewAmount('')
+      setNewDescription('')
+      setNewCategoryId(null)
+      close()
+    } catch (e) {
+      notifications.show({ title: 'Error', message: '登録に失敗しました', color: 'red' })
+    }
+  }
 
-      <div className="max-w-md mx-auto p-4 space-y-4">
+  const categoryOptions = categories.map(c => ({ value: c.id.toString(), label: c.name }))
+
+  return (
+    <>
+      <PageHeader
+        title="Inbox"
+        subtitle={`${transactions.length} items`}
+        bottomContent={
+          <Grid gutter="xs">
+            <Grid.Col span={5}>
+              <Select
+                size="xs"
+                value={statusFilter}
+                onChange={setStatusFilter}
+                data={[
+                  { value: 'pending', label: '未承認のみ' },
+                  { value: 'all', label: 'すべての履歴' },
+                ]}
+                allowDeselect={false}
+              />
+            </Grid.Col>
+            <Grid.Col span={7}>
+              <TextInput
+                size="xs"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.currentTarget.value)}
+              />
+            </Grid.Col>
+          </Grid>
+        }
+      >
+        <ActionIcon variant="light" size="lg" onClick={loadData}>
+          <Search size={18} />
+        </ActionIcon>
+      </PageHeader>
+
+      <PageContainer>
         {statusFilter === 'pending' && transactions.length > 0 && (
           <Button 
-            onPress={handleAiPredict} 
-            isLoading={aiLoading}
-            className="w-full bg-foreground text-background font-medium shadow-md mb-2"
-            startContent={!aiLoading && <Wand2 className="w-4 h-4" />}
+            fullWidth 
+            mb="md"
+            variant="gradient" 
+            gradient={{ from: 'indigo', to: 'cyan' }}
+            leftSection={!aiLoading && <Wand2 size={16} />}
+            loading={aiLoading}
+            onClick={handleAiPredict}
           >
             AI Categorize
           </Button>
         )}
 
         {loading ? (
-          <div className="flex justify-center py-20"><Spinner /></div>
+          <Group justify="center" py="xl"><Loader type="dots" /></Group>
         ) : transactions.length === 0 ? (
-          <div className="text-center py-20 text-default-400">
-            <p className="text-sm">データが見つかりません</p>
-          </div>
+          <Text c="dimmed" ta="center" py="xl" size="sm">データが見つかりません</Text>
         ) : (
-          <div className="space-y-4">
+          <Stack gap="md">
             {transactions.map((t) => (
-              <Card key={t.id} className={`w-full border ${t.status === 'confirmed' ? 'opacity-60 bg-default-50' : 'shadow-sm border-divider'}`}>
+              <Card key={t.id} padding="md" radius="md" withBorder style={{ 
+                opacity: t.status === 'confirmed' ? 0.7 : 1,
+                backgroundColor: t.status === 'confirmed' ? 'var(--mantine-color-gray-0)' : 'white'
+              }}>
                 {t.status === 'confirmed' && (
-                  <div className="absolute top-2 right-2 z-10">
-                    <Chip size="sm" color="success" variant="flat">Approved</Chip>
-                  </div>
+                  <Badge color="green" variant="light" pos="absolute" top={10} right={10}>Approved</Badge>
                 )}
 
-                <CardHeader className="flex justify-between items-start pb-0 pt-4 px-4">
-                  <div className="flex flex-col gap-1 w-full">
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center text-tiny text-default-400">
-                        <CalendarDays className="w-3 h-3 mr-1" />
-                        {format(new Date(t.date), 'yyyy/MM/dd')}
-                      </div>
-                      <span className="text-lg font-bold tracking-tight">
-                        ¥{t.amount.toLocaleString()}
-                      </span>
-                    </div>
-                    <h3 className="text-medium font-semibold line-clamp-1">{t.description}</h3>
-                    <div className="flex items-center text-tiny text-default-500">
-                      <CreditCard className="w-3 h-3 mr-1" />
-                      {t.accounts?.name}
-                    </div>
-                  </div>
-                </CardHeader>
-                
-                <CardBody className="py-3 px-4">
-                  {/* NextUI Selectによるカテゴリ選択 */}
-                  <Select
-                    aria-label="Select Category"
-                    placeholder="カテゴリを選択..."
-                    selectedKeys={t.category_id ? [t.category_id.toString()] : []}
-                    onChange={(e) => handleCategoryChange(t.id, e.target.value)}
-                    isDisabled={t.status === 'confirmed'}
-                    variant="bordered"
-                    size="sm"
-                    // ▼ 修正: ラベルを外に出して重なりを防ぐ
-                    labelPlacement="outside"
-                    // ▼ 修正: ポップアップの背景色と境界線を明示して透過を防ぐ
-                    popoverProps={{
-                      classNames: {
-                        content: "bg-background border border-default-200 shadow-lg"
-                      }
-                    }}
-                    classNames={{
-                      trigger: `min-h-[40px] bg-background ${!t.category_id ? 'border-danger text-danger' : ''}`,
-                      value: "text-small font-medium",
-                      innerWrapper: "gap-3", // アイコンとテキストの間隔
-                    }}
-                    // ▼ 修正: AIアイコンがある場合の表示調整
-                    startContent={
-                      t.ai_suggested ? <Wand2 className="w-3 h-3 text-purple-500 shrink-0" /> : undefined
-                    }
-                  >
-                    {categories.map((c) => (
-                      <SelectItem key={c.id} value={c.id} textValue={c.name}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </Select>
-                </CardBody>
-                
+                <Group justify="space-between" align="flex-start" mb="xs">
+                  <Stack gap={2} style={{ flex: 1 }}>
+                    <Group gap={4}>
+                      <ThemeIcon variant="light" size="xs" color="gray">
+                         <CalendarDays size={10} />
+                      </ThemeIcon>
+                      <Text size="xs" c="dimmed">{format(new Date(t.date), 'yyyy/MM/dd')}</Text>
+                    </Group>
+                    <Text fw={700} size="lg">¥{t.amount.toLocaleString()}</Text>
+                    <Text fw={600} size="sm" lineClamp={1}>{t.description}</Text>
+                    <Group gap={4}>
+                      <CreditCard size={12} color="gray" />
+                      <Text size="xs" c="dimmed">{t.accounts?.name || 'Unknown Account'}</Text>
+                    </Group>
+                  </Stack>
+                </Group>
+
+                <Select
+                  placeholder="カテゴリを選択"
+                  data={categoryOptions}
+                  value={t.category_id ? t.category_id.toString() : null}
+                  onChange={(val) => handleCategoryChange(t.id, val)}
+                  disabled={t.status === 'confirmed'}
+                  searchable
+                  leftSection={t.ai_suggested && <Wand2 size={14} color="purple" />}
+                  mb={t.status === 'pending' ? 'sm' : 0}
+                />
+
                 {t.status === 'pending' && (
                   <>
-                    <div className="h-px w-full bg-divider"></div>
-                    <CardFooter className="p-0 flex h-12">
+                    <Divider mb="sm" />
+                    <Group gap={0} grow>
                       <Button 
-                        variant="light" 
-                        radius="none" 
-                        className="flex-1 h-full text-default-500 data-[hover=true]:text-danger"
-                        onPress={() => handleIgnore(t.id)}
+                        variant="subtle" 
+                        color="gray" 
+                        leftSection={<X size={16} />}
+                        onClick={() => handleIgnore(t.id)}
+                        style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
                       >
-                        <X className="w-5 h-5" />
+                        除外
                       </Button>
-                      <div className="w-px h-full bg-divider"></div>
                       <Button 
-                        variant="light" 
-                        radius="none" 
-                        className="flex-1 h-full font-semibold text-primary data-[hover=true]:bg-primary/10"
-                        onPress={() => handleApprove(t)}
+                        variant="subtle" 
+                        color="indigo" 
+                        leftSection={<Check size={16} />}
+                        onClick={() => handleApprove(t)}
+                        style={{ borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeft: '1px solid var(--mantine-color-gray-2)' }}
                       >
-                        <Check className="w-5 h-5" />
+                        承認
                       </Button>
-                    </CardFooter>
+                    </Group>
                   </>
                 )}
               </Card>
             ))}
-          </div>
+          </Stack>
         )}
-      </div>
-    </main>
+
+        <Menu position="top-end" withArrow>
+          <Menu.Target>
+            <ActionIcon 
+              variant="filled" 
+              color="black" 
+              size={56} 
+              radius="xl" 
+              pos="fixed" 
+              bottom={100} 
+              right={20} 
+              style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.3)', zIndex: 99 }}
+            >
+              <Plus size={24} />
+            </ActionIcon>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Item leftSection={<PenLine size={16} />} onClick={open}>
+              手動入力
+            </Menu.Item>
+            <Menu.Item leftSection={<History size={16} />} onClick={() => notifications.show({ message: '準備中', color: 'blue' })}>
+              過去履歴を登録
+            </Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
+
+        <Modal opened={opened} onClose={close} title="手動入力" centered>
+          <Stack gap="md">
+            <TextInput
+              label="日付"
+              type="date"
+              value={newDate}
+              onChange={(e) => setNewDate(e.currentTarget.value)}
+            />
+            <NumberInput
+              label="金額"
+              placeholder="0"
+              leftSection="¥"
+              value={newAmount}
+              onChange={setNewAmount}
+              hideControls
+            />
+            <TextInput
+              label="内容"
+              placeholder="例: ランチ"
+              value={newDescription}
+              onChange={(e) => setNewDescription(e.currentTarget.value)}
+            />
+            <Select
+              label="カテゴリ"
+              placeholder="選択してください"
+              data={categoryOptions}
+              value={newCategoryId}
+              onChange={setNewCategoryId}
+              searchable
+            />
+            <Button fullWidth onClick={handleManualSave} mt="md">
+              登録
+            </Button>
+          </Stack>
+        </Modal>
+
+      </PageContainer>
+    </>
   )
 }
