@@ -62,9 +62,12 @@ export async function getPendingCount() {
 // --- 3. データの承認・更新 ---
 export async function updateTransaction(id: string, updates: any) {
   const supabase = await createClient() // ★クライアント生成
+  // 手動更新時はAIフラグを折る
+  const cleanUpdates = { ...updates, is_ai_suggested: false }
+
   const { error } = await supabase
     .from('transactions')
-    .update(updates)
+    .update(cleanUpdates)
     .eq('id', id)
 
   if (error) throw new Error(error.message)
@@ -269,16 +272,12 @@ export async function applyAiCategories(targets: { id: string, description: stri
 
         .from('transactions')
 
-        .update({ 
-
+        .update({
           category_id: categoryId, 
-
           is_ai_suggested: true 
-
         })
 
         .eq('id', t.id)
-
       
 
       if (!error) updateCount++
@@ -301,14 +300,79 @@ export async function applyAiCategories(targets: { id: string, description: stri
 
 
 
-// --- AI予測 (ここだけDBを使わないが、カテゴリ取得のために必要) ---
+// --- 12. 口座管理 ---
+export async function createAccount(data: {
+  name: string
+  type: string
+  is_liability: boolean
+}) {
+  const supabase = await createClient()
+  const { error } = await supabase.from('accounts').insert(data)
+  if (error) throw new Error(error.message)
+  revalidatePath('/admin')
+  revalidatePath('/assets')
+  return { success: true }
+}
+
+export async function updateAccount(id: string, data: {
+  name: string
+  type: string
+  is_liability: boolean
+}) {
+  const supabase = await createClient()
+  const { error } = await supabase.from('accounts').update(data).eq('id', id)
+  if (error) throw new Error(error.message)
+  revalidatePath('/admin')
+  revalidatePath('/assets')
+  return { success: true }
+}
+
+export async function deleteAccount(id: string) {
+  const supabase = await createClient()
+  const { error } = await supabase.from('accounts').delete().eq('id', id)
+  if (error) throw new Error("この口座に関連付けられた取引があるため削除できません")
+  revalidatePath('/admin')
+  revalidatePath('/assets')
+  return { success: true }
+}
+
+export async function requestHistoryFetch(startDate: string, endDate: string) {
+  const gasUrl = process.env.GMAIL_GAS_URL
+  const apiKey = process.env.ADMIN_API_KEY
+
+  if (!gasUrl) throw new Error("GMAIL_GAS_URL が設定されていません")
+
+  // GASへ直接リクエスト送信
+  const response = await fetch(gasUrl, {
+    method: 'POST',
+    body: JSON.stringify({
+      key: apiKey,
+      startDate,
+      endDate
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error("GASへのリクエストに失敗しました")
+  }
+
+  const result = await response.json()
+  
+  if (result.error) {
+    throw new Error(result.error)
+  }
+
+  revalidatePath('/inbox')
+  return { success: true, count: result.count }
+}
+
+// --- AI予測 (Gemini) ---
 
 export async function predictCategories(descriptions: string[]) {
 
   const apiKey = process.env.GOOGLE_API_KEY
 
   if (!apiKey) return {}
-
   
 
   // サーバーアクション内でカテゴリ取得
@@ -320,9 +384,7 @@ export async function predictCategories(descriptions: string[]) {
 
 
   const catText = categories.map((c: any) => 
-
     `ID:${c.id}, Name:${c.name}, Keywords:${c.keywords?.join(',')}`
-
   ).join('\n')
 
 
@@ -351,32 +413,23 @@ export async function predictCategories(descriptions: string[]) {
 
     出力は以下のJSONフォーマットのみ。Markdown不要。確信がなければID: null。
 
-    {"SUKIYA": 2, "AMAZON": 5}
-
-  `
-
-
+    {
+      "摘要1": カテゴリID,
+      "摘要2": カテゴリID
+    }
+  `;
 
   try {
-
-    const genAI = new GoogleGenerativeAI(apiKey)
-
-    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" }) // モデル名を修正
-
-    const result = await model.generateContent(prompt)
-
-    const response = await result.response
-
-    const text = response.text().replace(/```json|```/g, '').trim()
-
-    return JSON.parse(text)
-
-  } catch (e) {
-
-    console.error("AI Error:", e)
-
-    return {}
-
+    const { GoogleGenerativeAI } = await import('@google/generative-ai');
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    const parsed = JSON.parse(text);
+    return parsed;
+  } catch (error) {
+    console.error('AI予測エラー:', error);
+    return {};
   }
-
 }

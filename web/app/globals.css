@@ -20,7 +20,32 @@
   }
 }
 
+/* Micro-interactions: Global Haptic Feedback */
+button, 
+.mantine-UnstyledButton-root,
+.mantine-Button-root,
+.mantine-ActionIcon-root {
+  transition: transform 0.1s ease !important;
+}
+
+button:active,
+.mantine-UnstyledButton-root:active,
+.mantine-Button-root:active,
+.mantine-ActionIcon-root:active {
+  transform: scale(0.96);
+}
+
+/* Clickable Cards */
+.mantine-Card-root[onClick],
+.mantine-Card-root[style*="cursor: pointer"] {
+  transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.mantine-Card-root[onClick]:active,
+.mantine-Card-root[style*="cursor: pointer"]:active {
+  transform: scale(0.98);
+}
+
 body {
   color: rgb(var(--foreground-rgb));
-  /* Mantine handles background, but we keep this for tailwind compatibility if needed */
 }

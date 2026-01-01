@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getAccountsWithBalance, updateAssetBalance } from '@/app/actions'
+import { getAccountsWithBalance, updateAssetBalance, createAccount, updateAccount, deleteAccount } from '@/app/actions'
 import { 
   Card, 
   Group, 
@@ -13,11 +13,15 @@ import {
   Button, 
   NumberInput, 
   Badge,
-  Loader
+  Loader,
+  Menu,
+  TextInput,
+  Select,
+  Checkbox,
 } from "@mantine/core"
 import { useDisclosure } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
-import { Landmark, Wallet, CreditCard, RefreshCw, ChevronRight } from 'lucide-react'
+import { Landmark, Wallet, CreditCard, RefreshCw, Plus, Trash2, MoreVertical, Settings2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageContainer } from '@/components/layout/page-container'
@@ -25,11 +29,18 @@ import { PageContainer } from '@/components/layout/page-container'
 export default function AssetsPage() {
   const [accounts, setAccounts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [opened, { open, close }] = useDisclosure(false)
   
-  // 編集用ステート
+  // 残高更新モーダル用
+  const [opened, { open, close }] = useDisclosure(false)
   const [selectedAccount, setSelectedAccount] = useState<any>(null)
   const [inputAmount, setInputAmount] = useState<number | string>("")
+
+  // 口座情報編集モーダル用
+  const [accOpened, { open: accOpen, close: accClose }] = useDisclosure(false)
+  const [editingAccount, setEditingAccount] = useState<any>(null)
+  const [accName, setAccName] = useState("")
+  const [accType, setAccType] = useState("bank")
+  const [accIsLiability, setAccIsLiability] = useState(false)
 
   const loadData = async () => {
     setLoading(true)
@@ -42,38 +53,72 @@ export default function AssetsPage() {
     loadData()
   }, [])
 
-  // モーダルを開く
-  const handleEdit = (account: any) => {
+  // 残高更新モーダルを開く
+  const handleEditBalance = (account: any) => {
     setSelectedAccount(account)
     setInputAmount(account.current_amount)
     open()
   }
 
-  // 保存処理
-  const handleSave = async () => {
-    if (!selectedAccount) return
-    
-    try {
-      const amount = Number(inputAmount)
-      if (isNaN(amount)) {
-        notifications.show({ message: '数値を入力してください', color: 'red' })
-        return
-      }
+  // 口座管理モーダルを開く (新規/編集)
+  const handleOpenAccModal = (account?: any) => {
+    if (account) {
+      setEditingAccount(account)
+      setAccName(account.name)
+      setAccType(account.type)
+      setAccIsLiability(account.is_liability)
+    } else {
+      setEditingAccount(null)
+      setAccName("")
+      setAccType("bank")
+      setAccIsLiability(false)
+    }
+    accOpen()
+  }
 
-      // 今日の日付で保存
-      const today = format(new Date(), 'yyyy-MM-dd')
-      
-      await updateAssetBalance(selectedAccount.id, amount, today)
-      
+  // 残高の保存
+  const handleSaveBalance = async () => {
+    if (!selectedAccount) return
+    try {
+      await updateAssetBalance(selectedAccount.id, Number(inputAmount), format(new Date(), 'yyyy-MM-dd'))
       notifications.show({ message: '残高を更新しました', color: 'green' })
-      loadData() // リロード
+      loadData()
       close()
     } catch (e) {
       notifications.show({ message: '更新に失敗しました', color: 'red' })
     }
   }
 
-  // アイコン選択ロジック
+  // 口座情報の保存
+  const handleSaveAccount = async () => {
+    if (!accName) return
+    try {
+      const data = { name: accName, type: accType, is_liability: accIsLiability }
+      if (editingAccount) {
+        await updateAccount(editingAccount.id, data)
+        notifications.show({ message: '口座情報を更新しました', color: 'green' })
+      } else {
+        await createAccount(data)
+        notifications.show({ message: '新しい口座を作成しました', color: 'green' })
+      }
+      loadData()
+      accClose()
+    } catch (e: any) {
+      notifications.show({ message: e.message, color: 'red' })
+    }
+  }
+
+  const handleDeleteAccount = async (id: string) => {
+    if (!confirm("この口座を削除しますか？関連する取引がある場合は削除できません。")) return
+    try {
+      await deleteAccount(id)
+      notifications.show({ message: '削除しました', color: 'gray' })
+      loadData()
+    } catch (e: any) {
+      notifications.show({ message: e.message, color: 'red' })
+    }
+  }
+
   const getIcon = (type: string) => {
     switch(type) {
       case 'bank': return <Landmark size={20} />
@@ -87,9 +132,14 @@ export default function AssetsPage() {
       <PageHeader
         title="Assets"
         children={
-          <ActionIcon variant="light" size="lg" onClick={loadData}>
-            <RefreshCw size={18} />
-          </ActionIcon>
+          <>
+            <ActionIcon variant="light" size="2rem" onClick={() => handleOpenAccModal()}>
+              <Plus size={18} />
+            </ActionIcon>
+            <ActionIcon variant="light" size="2rem" onClick={loadData}>
+              <RefreshCw size={18} />
+            </ActionIcon>
+          </>
         }
       />
 
@@ -105,10 +155,10 @@ export default function AssetsPage() {
                 radius="md" 
                 withBorder
                 style={{ cursor: 'pointer' }}
-                onClick={() => handleEdit(acc)}
+                onClick={() => handleEditBalance(acc)}
               >
                 <Group justify="space-between" wrap="nowrap">
-                  <Group gap="md">
+                  <Group gap="md" style={{ flex: 1 }}>
                     <ThemeIcon 
                       size="xl" 
                       radius="md" 
@@ -118,7 +168,7 @@ export default function AssetsPage() {
                       {getIcon(acc.type)}
                     </ThemeIcon>
                     <Stack gap={0}>
-                      <Text fw={500} size="sm">{acc.name}</Text>
+                      <Text fw={700} size="sm">{acc.name}</Text>
                       <Text size="xs" c="dimmed">
                         {acc.last_updated ? format(new Date(acc.last_updated), 'yyyy/MM/dd') : '未更新'}
                       </Text>
@@ -126,10 +176,39 @@ export default function AssetsPage() {
                   </Group>
                   
                   <Group gap="xs">
-                    <Text fw={700} size="lg" c={acc.is_liability ? 'red' : undefined}>
+                    <Text fw={800} size="lg" c={acc.is_liability ? 'red' : undefined}>
                       ¥ {acc.current_amount.toLocaleString()}
                     </Text>
-                    <ChevronRight size={16} color="var(--mantine-color-gray-5)" />
+                    
+                    <Menu position="bottom-end" withinPortal shadow="md">
+                      <Menu.Target>
+                        <ActionIcon 
+                          variant="subtle" 
+                          color="gray" 
+                          size="2rem"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreVertical size={16} />
+                        </ActionIcon>
+                      </Menu.Target>
+                      <Menu.Dropdown onClick={(e) => e.stopPropagation()}>
+                        <Menu.Label>管理</Menu.Label>
+                        <Menu.Item 
+                          leftSection={<Settings2 size={14} />} 
+                          onClick={() => handleOpenAccModal(acc)}
+                        >
+                          口座設定を変更
+                        </Menu.Item>
+                        <Menu.Divider />
+                        <Menu.Item 
+                          color="red" 
+                          leftSection={<Trash2 size={14} />}
+                          onClick={() => handleDeleteAccount(acc.id)}
+                        >
+                          口座を削除
+                        </Menu.Item>
+                      </Menu.Dropdown>
+                    </Menu>
                   </Group>
                 </Group>
               </Card>
@@ -137,22 +216,16 @@ export default function AssetsPage() {
           </Stack>
         )}
 
-        {/* 編集モーダル */}
-        <Modal 
-          opened={opened} 
-          onClose={close} 
-          title={
-            <Stack gap={0}>
-              <Text fw={700}>残高更新</Text>
-              <Text size="xs" c="dimmed">{selectedAccount?.name}</Text>
-            </Stack>
-          }
-          centered
-        >
+        {/* 1. 残高更新モーダル */}
+        <Modal opened={opened} onClose={close} centered radius="lg" title={
+          <Stack gap={0}>
+            <Text fw={800}>残高を更新</Text>
+            <Text size="xs" c="dimmed">{selectedAccount?.name}</Text>
+          </Stack>
+        }>
           <Stack gap="md" py="xs">
              <NumberInput
-               label="現在残高"
-               description={`※ 本日の日付 (${format(new Date(), 'yyyy/MM/dd')}) で記録されます`}
+               label="現在の正確な残高を入力"
                placeholder="0"
                leftSection="¥"
                value={inputAmount}
@@ -161,10 +234,45 @@ export default function AssetsPage() {
                size="lg"
                autoFocus
              />
-             <Group justify="flex-end" mt="md">
-               <Button variant="default" onClick={close}>キャンセル</Button>
-               <Button onClick={handleSave}>保存する</Button>
-             </Group>
+             <Button fullWidth size="md" onClick={handleSaveBalance} radius="md">
+               保存する
+             </Button>
+          </Stack>
+        </Modal>
+
+        {/* 2. 口座情報編集・追加モーダル */}
+        <Modal opened={accOpened} onClose={accClose} centered radius="lg" title={
+          <Text fw={800}>口座の{editingAccount ? '設定変更' : '新規登録'}</Text>
+        }>
+          <Stack gap="md">
+            <TextInput
+              label="口座名"
+              placeholder="例: 三井住友銀行"
+              value={accName}
+              onChange={(e) => setAccName(e.currentTarget.value)}
+              required
+            />
+            <Select
+              label="種類"
+              data={[
+                { value: 'bank', label: '銀行口座' },
+                { value: 'credit_card', label: 'クレジットカード' },
+                { value: 'wallet', label: '現金・財布' },
+                { value: 'securities', label: '証券' },
+                { value: 'point', label: 'ポイント' },
+              ]}
+              value={accType}
+              onChange={(val) => setAccType(val || 'bank')}
+            />
+            <Checkbox
+              label="この口座を負債として扱う"
+              description="残高をマイナス資産として計算します"
+              checked={accIsLiability}
+              onChange={(e) => setAccIsLiability(e.currentTarget.checked)}
+            />
+            <Button fullWidth mt="md" onClick={handleSaveAccount}>
+              {editingAccount ? '変更を保存' : '口座を作成'}
+            </Button>
           </Stack>
         </Modal>
       </PageContainer>

@@ -32,15 +32,22 @@ export async function POST(request: Request) {
 
     // 2. データ処理ループ
     for (const record of records) {
-      // 厳格モデルに合わせたデータ整形
-      // GASからはマイナスで来る場合があるので絶対値にする
       const amount = Math.abs(record.amount) 
       const description = record.description || '不明'
       
-      // 口座IDの特定 (今回は簡易的に 'Oliveフレキシブルペイ' 固定とします)
-      // ※GAS側でカード名を判別して送ってくる場合は分岐可能
-      let accountName = 'Oliveフレキシブルペイ'
-      if (record.source.includes('view')) accountName = 'Viewカード'
+      // --- 口座とタイプの判定ロジックを強化 ---
+      let accountName = 'Oliveフレキシブルペイ' // デフォルト（三井住友カード等）
+      let type: 'income' | 'expense' = 'expense'
+
+      if (record.source.includes('view')) {
+        accountName = 'Viewカード'
+      } else if (record.source.includes('smbc')) {
+        accountName = '三井住友銀行'
+        // 入金通知の場合はタイプをincomeにする
+        if (record.source === 'email_smbc_deposit') {
+          type = 'income'
+        }
+      }
       
       const { data: account } = await supabase
         .from('accounts')
@@ -60,6 +67,7 @@ export async function POST(request: Request) {
         .eq('date', record.date)
         .eq('amount', amount)
         .eq('description', description)
+        .eq('from_account_id', account.id) // 同じ口座からのデータのみ
         .single()
 
       if (existing) {
@@ -72,9 +80,9 @@ export async function POST(request: Request) {
         date: record.date,
         amount: amount,
         description: description,
-        type: 'expense', // 一旦すべて支出として登録
-        from_account_id: account.id, // 負債口座からの出金
-        status: 'pending', // 未承認
+        type: type,
+        from_account_id: account.id,
+        status: 'pending', 
         source: 'gmail_webhook'
       })
 

@@ -1,15 +1,15 @@
 'use client'
 
 import React from 'react'
-import { Paper, Group, Text, Box, rem, ThemeIcon, Stack } from '@mantine/core'
+import { Paper, Group, Text, Box, ThemeIcon, Image } from '@mantine/core'
 import { useWindowScroll } from '@mantine/hooks'
 
 interface PageHeaderProps {
   title: string
   subtitle?: string
-  tabs?: React.ReactNode // タブなどのメインナビゲーション
-  children?: React.ReactNode // 右側の追加アクション
-  bottomContent?: React.ReactNode // フィルタなどのサブコンテンツ
+  tabs?: React.ReactNode
+  children?: React.ReactNode
+  bottomContent?: React.ReactNode
 }
 
 export function PageHeader({ 
@@ -25,7 +25,7 @@ export function PageHeader({
   return (
     <Paper 
       px="md" 
-      py={isScrolled ? rem(6) : rem(10)}
+      py={isScrolled ? "0.4rem" : "0.6rem"}
       radius={0}
       pos="sticky"
       top={0}
@@ -39,37 +39,33 @@ export function PageHeader({
       }}
     >
       <Group justify="space-between" align="center" wrap="nowrap" gap="xs">
-        {/* 左側: ロゴとタイトル (スクロール時はロゴのみ、またはロゴ+タブ) */}
         <Group gap="xs" wrap="nowrap" style={{ flex: isScrolled && tabs ? 1 : 'unset', minWidth: 0 }}>
-          <ThemeIcon 
-            size={isScrolled ? rem(22) : rem(26)} 
-            radius="md" 
-            variant="gradient" 
-            gradient={{ from: 'indigo', to: 'cyan' }}
-          >
-            <Text fw={900} fs="italic" style={{ fontSize: isScrolled ? rem(10) : rem(12) }} c="white">F</Text>
-          </ThemeIcon>
+          <Image
+            src="/logo.jpg"
+            alt="Flola Logo"
+            w={isScrolled ? 24 : 30}
+            h={isScrolled ? 24 : 30}
+            radius="sm"
+            fallbackSrc="https://placehold.co/30x30?text=F"
+          />
           
           {!isScrolled ? (
             <Box style={{ minWidth: 0 }}>
               <Text size="sm" fw={900} lh={1.1} style={{ letterSpacing: '-0.5px' }} truncate>{title}</Text>
               {subtitle && (
-                <Text size={rem(8)} c="dimmed" fw={700} tt="uppercase" style={{ letterSpacing: '0.5px' }}>{subtitle}</Text>
+                <Text style={{ fontSize: '0.5rem', color: 'var(--mantine-color-gray-6)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1 }}>{subtitle}</Text>
               )}
             </Box>
           ) : (
-            // スクロール時かつタブがある場合、ここにタブを表示
             tabs && <Box style={{ flex: 1, minWidth: 0 }}>{tabs}</Box>
           )}
         </Group>
 
-        {/* 右側: アクションボタン */}
-        <Group gap={rem(4)} wrap="nowrap" style={{ flexShrink: 0 }}>
+        <Group gap="0.25rem" wrap="nowrap" style={{ flexShrink: 0 }}>
           {children}
         </Group>
       </Group>
 
-      {/* 非スクロール時の拡張エリア */}
       {!isScrolled && (
         <>
           {tabs && <Box mt="sm">{tabs}</Box>}

@@ -18,15 +18,16 @@ const theme = createTheme({
   components: {
     Button: {
       defaultProps: {
-        fw: 500,
+        fw: 700,
       },
     },
     Card: {
       defaultProps: {
         withBorder: true,
         shadow: 'sm',
-      }
-    }
+        radius: 'lg',
+      },
+    },
   },
 });
 
