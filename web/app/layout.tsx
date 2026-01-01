@@ -40,10 +40,10 @@ export default function RootLayout({
       <head>
         <ColorSchemeScript />
       </head>
-      <body className={`${inter.className} bg-gray-50`}>
+      <body className={`${inter.className} bg-[#f1f3f5]`}>
         <MantineProvider theme={theme}>
           <Notifications position="top-center" zIndex={2077} />
-          <div className="pb-24 max-w-md mx-auto min-h-screen bg-white shadow-2xl overflow-hidden relative">
+          <div className="pb-32 max-w-md mx-auto min-h-screen bg-white shadow-2xl relative border-x border-gray-200">
             {children}
             <BottomNav />
           </div>
