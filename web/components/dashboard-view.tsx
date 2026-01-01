@@ -27,7 +27,7 @@ export function DashboardView({ totalAssets, totalExpense }: Props) {
             <Wallet size={16} />
             <Text size="sm" fw={500}>Total Assets</Text>
           </Group>
-          <Text size={36} fw={700} lh={1} style={{ letterSpacing: '-1px' }}>
+          <Text fz={36} fw={700} lh={1} style={{ letterSpacing: '-1px' }}>
             ¥ {totalAssets.toLocaleString()}
           </Text>
         </Stack>

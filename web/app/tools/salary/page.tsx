@@ -17,24 +17,8 @@ export default function SalaryPage() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.[0]) return
     
-    setLoading(true)
-    const formData = new FormData()
-    formData.append('file', e.target.files[0])
-
-    try {
-      const res = await fetch('/api/analyze/salary', {
-        method: 'POST',
-        body: formData
-      })
-      if (!res.ok) throw new Error('Analysis failed')
-      
-      const data = await res.json()
-      setResult(data)
-      toast.success("解析完了")
-    } catch (err) {
-      toast.error("解析に失敗しました")
-    }
-    setLoading(false)
+    toast.error("この機能は現在利用できません")
+    // APIエンドポイントが削除されたため、機能を無効化
   }
 
   // DB保存

@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Account, MonthlyBalance, SalarySlip } from '@/types/ui';
 import { FileText, Upload, Loader2, Landmark, History } from 'lucide-react';
-import { analyzeSalarySlip } from '@/lib/gemini';
+// import { analyzeSalarySlip } from '@/lib/gemini'; // APIエンドポイント削除のため無効化
 
 interface AssetsProps {
   accounts: Account[];
@@ -19,21 +19,8 @@ const Assets: React.FC<AssetsProps> = ({ accounts, monthlyBalances, salarySlips,
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setIsUploading(true);
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64 = (reader.result as string).split(',')[1];
-      try {
-        const result = await analyzeSalarySlip(base64);
-        onAddSalarySlip(result);
-        alert('給与明細を解析し、保存しました。');
-      } catch (err) {
-        alert('解析に失敗しました。');
-      } finally {
-        setIsUploading(false);
-      }
-    };
-    reader.readAsDataURL(file);
+    alert('この機能は現在利用できません');
+    // APIエンドポイントが削除されたため、機能を無効化
   };
 
   return (
