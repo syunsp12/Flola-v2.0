@@ -150,8 +150,8 @@ function TransactionItem({
                   handleFieldChange(t.id, 'date', date ? format(date, 'yyyy-MM-dd') : t.date)
                   stopEditing()
                 }}
-                onBlur={stopEditing}
                 autoFocus
+                dropdownType="modal"
                 valueFormat="MM/dd"
                 styles={{ input: { width: rem(60), padding: 0, textAlign: 'center' } }}
               />
@@ -283,7 +283,7 @@ function TransactionItem({
                       </Box>
                     )}
                   </Box>
-                  <Text size="xs" c="dimmed" fw={700} truncate style={{ maxWidth: rem(100) }}>
+                  <Text size="xs" c="dimmed" fw={700} truncate style={{ maxWidth: rem(200) }}>
                     {currentAccount?.name || 'Unknown'}
                   </Text>
                 </Group>

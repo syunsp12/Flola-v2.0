@@ -293,21 +293,19 @@ export async function deleteAccount(id: string) {
 
 // --- 13. 過去履歴取得リクエスト ---
 export async function requestHistoryFetch(startDate: string, endDate: string) {
-  const gasUrl = process.env.GMAIL_GAS_URL
-  const apiKey = process.env.ADMIN_API_KEY
-  if (!gasUrl) throw new Error("GMAIL_GAS_URL が設定されていません")
+  const supabase = await createClient()
+  
+  const { error } = await supabase
+    .from('history_fetch_requests')
+    .insert({
+      start_date: startDate,
+      end_date: endDate,
+      status: 'pending'
+    })
 
-  const response = await fetch(gasUrl, {
-    method: 'POST',
-    body: JSON.stringify({ key: apiKey, startDate, endDate }),
-  })
-
-  if (!response.ok) throw new Error("GASへのリクエストに失敗しました")
-  const result = await response.json()
-  if (result.error) throw new Error(result.error)
-
+  if (error) throw new Error(error.message)
   revalidatePath('/inbox')
-  return { success: true, count: result.count }
+  return { success: true }
 }
 
 // --- AI予測 (Gemini) ---
