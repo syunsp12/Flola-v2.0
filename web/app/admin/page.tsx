@@ -7,7 +7,9 @@ import {
   getCategories, 
   createCategory, 
   updateCategory, 
-  deleteCategory 
+  deleteCategory,
+  getAccountsWithBalance,
+  updateAccount
 } from '@/app/actions'
 import { 
   Card, 
@@ -24,14 +26,23 @@ import {
   ActionIcon, 
   Stack,
   ThemeIcon,
+  Box,
+  Divider,
+  useMantineColorScheme,
+  Switch,
+  Image,
+  SegmentedControl,
+  rem
 } from "@mantine/core"
 import { useDisclosure } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
-import { Activity, FileText, RefreshCw, Server, AlertCircle, CheckCircle2, Clock, Tag, Plus, Pencil, Trash2, ArrowUpCircle, ArrowDownCircle, Search } from 'lucide-react'
+import { Dropzone, IMAGE_MIME_TYPE } from '@mantine/dropzone'
+import { Activity, FileText, RefreshCw, Server, AlertCircle, CheckCircle2, Clock, Tag, Plus, Pencil, Trash2, ArrowUpCircle, ArrowDownCircle, Search, Settings, Moon, Sun, Bell, LogOut, User, Shield, Image as ImageIcon, Upload, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageContainer } from '@/components/layout/page-container'
+import { getSmartIconUrl } from '@/lib/utils/icon-helper'
 
 // --- 型定義 ---
 type Category = {
@@ -41,30 +52,52 @@ type Category = {
   keywords: string[] | null
 }
 
+type Account = {
+  id: string
+  name: string
+  type: string
+  is_liability: boolean
+  icon_url: string | null
+}
+
 export default function AdminPage() {
+  const { colorScheme, toggleColorScheme } = useMantineColorScheme()
+  const dark = colorScheme === 'dark'
+
   const [jobs, setJobs] = useState<any[]>([])
   const [logs, setLogs] = useState<any[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [accounts, setAccounts] = useState<Account[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<string | null>("categories")
+  const [systemTab, setSystemTab] = useState("jobs")
   
   const [opened, { open, close }] = useDisclosure(false)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
+
+  // ロゴ編集用
+  const [logoOpened, { open: logoOpen, close: logoClose }] = useDisclosure(false)
+  const [editingLogoAccount, setEditingLogoAccount] = useState<Account | null>(null)
+  const [tempLogoUrl, setTempLogoUrl] = useState("")
   
   const [catName, setCatName] = useState("")
   const [catType, setCatType] = useState<'income' | 'expense'>("expense")
   const [catKeywords, setCatKeywords] = useState("")
 
+  const [pushEnabled, setPushEnabled] = useState(true)
+
   const loadData = async () => {
     setLoading(true)
-    const [jobsData, logsData, catsData] = await Promise.all([
+    const [jobsData, logsData, catsData, accountsData] = await Promise.all([
       getJobStatuses(),
       getSystemLogs(),
-      getCategories()
+      getCategories(),
+      getAccountsWithBalance()
     ])
     setJobs(jobsData || [])
     setLogs(logsData || [])
     setCategories(catsData || [])
+    setAccounts(accountsData || [])
     setLoading(false)
   }
 
@@ -143,6 +176,29 @@ export default function AdminPage() {
     border: 'none'
   }
 
+  const handleOpenLogoModal = (account: Account) => {
+    setEditingLogoAccount(account)
+    setTempLogoUrl(account.icon_url || "")
+    logoOpen()
+  }
+
+  const handleSaveLogo = async () => {
+    if (!editingLogoAccount) return
+    try {
+      await updateAccount(editingLogoAccount.id, {
+        name: editingLogoAccount.name,
+        type: editingLogoAccount.type,
+        is_liability: editingLogoAccount.is_liability,
+        icon_url: tempLogoUrl || null
+      })
+      notifications.show({ message: 'ロゴを更新しました', color: 'green' })
+      loadData()
+      logoClose()
+    } catch (e: any) {
+      notifications.show({ message: e.message, color: 'red' })
+    }
+  }
+
   return (
     <Tabs value={activeTab} onChange={setActiveTab} variant="pills">
       <PageHeader
@@ -150,8 +206,9 @@ export default function AdminPage() {
         tabs={
           <Tabs.List grow style={tabListStyle}>
             <Tabs.Tab value="categories" leftSection={<Tag size={14} />} style={tabStyle}>Categories</Tabs.Tab>
-            <Tabs.Tab value="jobs" leftSection={<Server size={14} />} style={tabStyle}>Jobs</Tabs.Tab>
-            <Tabs.Tab value="logs" leftSection={<FileText size={14} />} style={tabStyle}>Logs</Tabs.Tab>
+            <Tabs.Tab value="logos" leftSection={<ImageIcon size={14} />} style={tabStyle}>Logos</Tabs.Tab>
+            <Tabs.Tab value="settings" leftSection={<User size={14} />} style={tabStyle}>Settings</Tabs.Tab>
+            <Tabs.Tab value="system" leftSection={<Activity size={14} />} style={tabStyle}>System</Tabs.Tab>
           </Tabs.List>
         }
       >
@@ -169,6 +226,115 @@ export default function AdminPage() {
             exit={{ opacity: 0, x: -10 }}
             transition={{ duration: 0.2 }}
           >
+            {/* --- ロゴ管理タブ --- */}
+            <Tabs.Panel value="logos" pt="md">
+              <Stack gap="md">
+                <Text size="sm" c="dimmed" px="xs">
+                  各口座に表示されるアイコンを管理します。空欄の場合は口座名から自動的に推測されます。
+                </Text>
+                {accounts.map((acc) => {
+                  const smartIcon = getSmartIconUrl(acc.name, acc.icon_url)
+                  return (
+                    <Card key={acc.id} padding="sm" radius="md" withBorder>
+                      <Group justify="space-between">
+                        <Group gap="md">
+                          <Image 
+                            src={smartIcon} 
+                            w={32} h={32} 
+                            radius="md" 
+                            fallbackSrc="https://placehold.co/32x32?text=?" 
+                          />
+                          <Stack gap={0}>
+                            <Text fw={700} size="sm">{acc.name}</Text>
+                            <Text size="10px" c="dimmed" tt="uppercase">{acc.type}</Text>
+                          </Stack>
+                        </Group>
+                        <ActionIcon variant="light" color="indigo" onClick={() => handleOpenLogoModal(acc)}>
+                          <Pencil size={14} />
+                        </ActionIcon>
+                      </Group>
+                    </Card>
+                  )
+                })}
+              </Stack>
+            </Tabs.Panel>
+
+            {/* --- 設定タブ --- */}
+            <Tabs.Panel value="settings" pt="md">
+              <Stack gap="xl">
+                <Card 
+                  p="lg" 
+                  style={{ 
+                    background: 'linear-gradient(135deg, var(--mantine-color-indigo-7) 0%, var(--mantine-color-indigo-9) 100%)',
+                    color: 'white',
+                    border: 'none'
+                  }}
+                >
+                  <Group justify="space-between">
+                    <Group gap="md">
+                      <ThemeIcon size={50} radius="xl" color="white" variant="white">
+                        <User size={30} color="var(--mantine-color-indigo-7)" />
+                      </ThemeIcon>
+                      <Stack gap={0}>
+                        <Text fw={800} size="lg">山田 太郎</Text>
+                        <Text size="xs" style={{ opacity: 0.8 }} fw={600} tt="uppercase">Personal Account</Text>
+                      </Stack>
+                    </Group>
+                    <ActionIcon variant="transparent" color="white">
+                      <Plus size={20} />
+                    </ActionIcon>
+                  </Group>
+                </Card>
+
+                <Stack gap="xs">
+                  <Text size="xs" fw={800} c="dimmed" tt="uppercase" px="xs">App Preferences</Text>
+                  <Card p={0} withBorder>
+                    <Stack gap={0}>
+                      <Group justify="space-between" p="md" style={{ borderBottom: '1px solid var(--mantine-color-gray-1)' }}>
+                        <Group gap="sm">
+                          <ThemeIcon variant="light" color="gray"><Bell size={16} /></ThemeIcon>
+                          <Text size="sm" fw={600}>通知を有効にする</Text>
+                        </Group>
+                        <Switch checked={pushEnabled} onChange={(e) => setPushEnabled(e.currentTarget.checked)} />
+                      </Group>
+
+                      <Group justify="space-between" p="md" style={{ borderBottom: '1px solid var(--mantine-color-gray-1)' }}>
+                        <Group gap="sm">
+                          <ThemeIcon variant="light" color="gray">{dark ? <Moon size={16} /> : <Sun size={16} />}</ThemeIcon>
+                          <Text size="sm" fw={600}>ダークモード</Text>
+                        </Group>
+                        <Switch checked={dark} onChange={() => toggleColorScheme()} />
+                      </Group>
+
+                      <Group justify="space-between" p="md">
+                        <Group gap="sm">
+                          <ThemeIcon variant="light" color="gray"><Shield size={16} /></ThemeIcon>
+                          <Text size="sm" fw={600}>セキュリティ設定</Text>
+                        </Group>
+                        <ActionIcon variant="subtle" color="gray"><Plus size={16} /></ActionIcon>
+                      </Group>
+                    </Stack>
+                  </Card>
+                </Stack>
+
+                <Button 
+                  variant="light" 
+                  color="red" 
+                  fullWidth 
+                  size="md" 
+                  leftSection={<LogOut size={18} />}
+                  onClick={() => notifications.show({ title: 'Logout', message: 'ログアウトしました', color: 'red' })}
+                >
+                  ログアウト
+                </Button>
+
+                <Stack align="center" gap={4} py="xl">
+                  <Text size="10px" c="dimmed" fw={800} tt="uppercase" style={{ letterSpacing: '2px' }}>Flola v2.1.0-stable</Text>
+                  <Text size="10px" c="dimmed">Powered by Gemini 1.5 Flash</Text>
+                </Stack>
+              </Stack>
+            </Tabs.Panel>
+
             <Tabs.Panel value="categories" pt="md">
               <Button 
                 fullWidth 
@@ -208,69 +374,84 @@ export default function AdminPage() {
               </Stack>
             </Tabs.Panel>
 
-            <Tabs.Panel value="jobs" pt="md">
-              <Stack gap="sm">
-                {loading ? <Group justify="center" py="xl"><Loader type="dots" /></Group> : 
-                 jobs.map((job) => {
-                   const { icon, color } = getStatusInfo(job.last_status)
-                   return (
-                     <Card key={job.job_id} padding="md" radius="md" withBorder>
-                       <Group justify="space-between" align="flex-start" mb="xs">
-                         <Stack gap={0}>
-                           <Text fw={700} size="sm">{job.job_id}</Text>
-                           <Text size="xs" c="dimmed">Last Run</Text>
-                         </Stack>
-                         <Badge leftSection={icon} color={color} variant="light" tt="capitalize">
-                           {job.last_status}
-                         </Badge>
-                       </Group>
-                       <Group justify="space-between" align="flex-end">
-                         <Text size="xs" ff="monospace" c="dimmed">
-                           {job.last_run_at ? format(new Date(job.last_run_at), 'MM/dd HH:mm') : 'Never'}
-                         </Text>
-                       </Group>
-                       {job.message && (
-                         <Text size="xs" mt="sm" p="xs" bg="gray.1" style={{ borderRadius: 4, fontFamily: 'monospace' }} lineClamp={2}>
-                           {job.message}
-                         </Text>
-                       )}
-                     </Card>
-                   )
-                 })
-                }
-              </Stack>
-            </Tabs.Panel>
+            {/* --- システム状態タブ --- */}
+            <Tabs.Panel value="system" pt="md">
+              <Stack gap="md">
+                <SegmentedControl
+                  value={systemTab}
+                  onChange={setSystemTab}
+                  fullWidth
+                  radius="xl"
+                  data={[
+                    { label: 'Sync Jobs', value: 'jobs' },
+                    { label: 'Debug Logs', value: 'logs' },
+                  ]}
+                />
 
-            <Tabs.Panel value="logs" pt="md">
-              <Stack gap="0">
-                {logs.map((log) => (
-                   <Group key={log.id} wrap="nowrap" align="flex-start" p="sm" style={{ borderBottom: '1px solid var(--mantine-color-gray-2)' }}>
-                     <ThemeIcon 
-                       size={8} 
-                       radius="xl" 
-                       color={log.level === 'error' ? 'red' : log.level === 'warning' ? 'yellow' : 'blue'}
-                       mt={6}
-                     />
-                     <Stack gap={2} style={{ flex: 1 }}>
-                       <Group justify="space-between">
-                         <Text size="xs" fw={700}>{log.source}</Text>
-                         <Text size="xs" c="dimmed" ff="monospace">
-                           {format(new Date(log.timestamp), 'MM/dd HH:mm:ss')}
-                         </Text>
+                {systemTab === 'jobs' ? (
+                  <Stack gap="sm">
+                    {loading ? <Group justify="center" py="xl"><Loader type="dots" /></Group> : 
+                     jobs.map((job) => {
+                       const { icon, color } = getStatusInfo(job.last_status)
+                       return (
+                         <Card key={job.job_id} padding="md" radius="md" withBorder>
+                           <Group justify="space-between" align="flex-start" mb="xs">
+                             <Stack gap={0}>
+                               <Text fw={700} size="sm">{job.job_id}</Text>
+                               <Text size="xs" c="dimmed">Last Run</Text>
+                             </Stack>
+                             <Badge leftSection={icon} color={color} variant="light" tt="capitalize">
+                               {job.last_status}
+                             </Badge>
+                           </Group>
+                           <Group justify="space-between" align="flex-end">
+                             <Text size="xs" ff="monospace" c="dimmed">
+                               {job.last_run_at ? format(new Date(job.last_run_at), 'MM/dd HH:mm') : 'Never'}
+                             </Text>
+                           </Group>
+                           {job.message && (
+                             <Text size="xs" mt="sm" p="xs" bg="gray.1" style={{ borderRadius: 4, fontFamily: 'monospace' }} lineClamp={2}>
+                               {job.message}
+                             </Text>
+                           )}
+                         </Card>
+                       )
+                     })
+                    }
+                  </Stack>
+                ) : (
+                  <Stack gap="0">
+                    {logs.map((log) => (
+                       <Group key={log.id} wrap="nowrap" align="flex-start" p="sm" style={{ borderBottom: '1px solid var(--mantine-color-gray-2)' }}>
+                         <ThemeIcon 
+                           size={8} 
+                           radius="xl" 
+                           color={log.level === 'error' ? 'red' : log.level === 'warning' ? 'yellow' : 'blue'}
+                           mt={6}
+                         />
+                         <Stack gap={2} style={{ flex: 1 }}>
+                           <Group justify="space-between">
+                             <Text size="xs" fw={700}>{log.source}</Text>
+                             <Text size="xs" c="dimmed" ff="monospace">
+                               {format(new Date(log.timestamp), 'MM/dd HH:mm:ss')}
+                             </Text>
+                           </Group>
+                           <Text size="sm" lh={1.4} style={{ wordBreak: 'break-word' }}>
+                             {log.message}
+                           </Text>
+                         </Stack>
                        </Group>
-                       <Text size="sm" lh={1.4} style={{ wordBreak: 'break-word' }}>
-                         {log.message}
-                       </Text>
-                     </Stack>
-                   </Group>
-                 ))
-                }
+                     ))
+                    }
+                  </Stack>
+                )}
               </Stack>
             </Tabs.Panel>
           </motion.div>
         </AnimatePresence>
       </PageContainer>
 
+      {/* カテゴリ編集モーダル */}
       <Modal 
         opened={opened} 
         onClose={close} 
@@ -326,6 +507,76 @@ export default function AdminPage() {
           <Group justify="flex-end" mt="md">
             <Button variant="default" onClick={close}>キャンセル</Button>
             <Button onClick={handleSaveCategory}>保存</Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* ロゴ編集モーダル */}
+      <Modal 
+        opened={logoOpened} 
+        onClose={logoClose} 
+        title="ロゴ設定の変更"
+        centered
+      >
+        <Stack gap="md">
+          <Group gap="md" align="center">
+            <Image src={tempLogoUrl || getSmartIconUrl(editingLogoAccount?.name || "")} w={50} h={50} radius="md" />
+            <Box>
+              <Text fw={700}>{editingLogoAccount?.name}</Text>
+              <Text size="xs" c="dimmed">現在の表示プレビュー</Text>
+            </Box>
+          </Group>
+
+          <Divider label="画像のアップロード" labelPosition="center" />
+
+          <Dropzone
+            onDrop={(files) => {
+              const file = files[0];
+              const reader = new FileReader();
+              reader.onload = (event) => {
+                setTempLogoUrl(event.target?.result as string);
+              };
+              reader.readAsDataURL(file);
+            }}
+            onReject={() => notifications.show({ message: '無効なファイルです', color: 'red' })}
+            maxSize={3 * 1024 ** 2}
+            accept={IMAGE_MIME_TYPE}
+            radius="md"
+            useFsAccessApi={false}
+          >
+            <Group justify="center" gap="xl" mih={120} style={{ pointerEvents: 'none' }}>
+              <Dropzone.Accept>
+                <Upload size={40} color="var(--mantine-color-blue-6)" />
+              </Dropzone.Accept>
+              <Dropzone.Reject>
+                <X size={40} color="var(--mantine-color-red-6)" />
+              </Dropzone.Reject>
+              <Dropzone.Idle>
+                <ImageIcon size={40} color="var(--mantine-color-dimmed)" />
+              </Dropzone.Idle>
+
+              <div>
+                <Text size="sm" inline>画像をドラッグ＆ドロップ</Text>
+                <Text size="xs" c="dimmed" inline mt={7}>
+                  またはクリックしてファイルを選択 (3MBまで)
+                </Text>
+              </div>
+            </Group>
+          </Dropzone>
+
+          <Divider label="または URL を直接入力" labelPosition="center" />
+
+          <TextInput
+            label="ロゴURL"
+            placeholder="https://.../logo.png"
+            value={tempLogoUrl}
+            onChange={(e) => setTempLogoUrl(e.currentTarget.value)}
+            description="画像URL、または /logo.jpg のようなパスを入力。"
+          />
+
+          <Group justify="flex-end" mt="md">
+            <Button variant="default" onClick={logoClose}>キャンセル</Button>
+            <Button onClick={handleSaveLogo}>反映する</Button>
           </Group>
         </Stack>
       </Modal>

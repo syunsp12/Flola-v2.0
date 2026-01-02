@@ -12,6 +12,8 @@ export interface Account {
   type: 'bank' | 'credit_card' | 'securities' | 'pension' | 'wallet' | 'point' | 'liability_other'
   is_liability: boolean
   include_in_net_worth: boolean
+  icon_url: string | null
+  card_brand: string | null
   created_at: string
 }
 

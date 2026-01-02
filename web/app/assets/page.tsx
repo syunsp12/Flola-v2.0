@@ -18,6 +18,8 @@ import {
   TextInput,
   Select,
   Checkbox,
+  Image,
+  Box
 } from "@mantine/core"
 import { useDisclosure } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
@@ -25,17 +27,135 @@ import { Landmark, Wallet, CreditCard, RefreshCw, Plus, Trash2, MoreVertical, Se
 import { format } from 'date-fns'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageContainer } from '@/components/layout/page-container'
+import { getSmartIconUrl, getCardBrandLogo } from '@/lib/utils/icon-helper'
+import { LOGO_MASTER } from '@/lib/constants/logos'
+
+// 各口座カードのコンポーネント
+function AccountCard({ acc, getIcon, onEdit, onEditAccount, onDeleteAccount }: any) {
+  const [imageError, setImageError] = useState(false);
+  const iconUrl = getSmartIconUrl(acc.name, acc.icon_url);
+  
+  // 名前からブランドロゴを自動判定（マスタベース）
+  const brandKey = Object.keys(LOGO_MASTER.brands).find(key => 
+    acc.name.toLowerCase().includes(key.toLowerCase())
+  );
+  const brandLogo = getCardBrandLogo(brandKey || null);
+
+  return (
+    <Card 
+      padding="md" 
+      radius="md" 
+      withBorder
+      style={{ cursor: 'pointer' }}
+      onClick={() => onEdit(acc)}
+    >
+      <Group justify="space-between" wrap="nowrap">
+        <Group gap="md" style={{ flex: 1, minWidth: 0 }}>
+          <Box pos="relative">
+            {(iconUrl && !imageError) ? (
+              <Image
+                src={iconUrl}
+                alt=""
+                w={40}
+                h={40}
+                radius="md"
+                onError={() => setImageError(true)}
+                fallbackSrc={undefined}
+              />
+            ) : (
+              <ThemeIcon 
+                size="2.5rem" 
+                radius="md" 
+                variant="light" 
+                color={acc.is_liability ? 'red' : 'indigo'}
+              >
+                {getIcon(acc.type)}
+              </ThemeIcon>
+            )}
+
+            {/* ブランドロゴのオーバーレイ表示（マスタに一致する場合） */}
+            {brandLogo && (
+              <Box 
+                pos="absolute" 
+                bottom={-4} 
+                right={-4} 
+                bg="white" 
+                p={2} 
+                style={{ 
+                  border: '1px solid var(--mantine-color-gray-2)',
+                  borderRadius: 'var(--mantine-radius-xs)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: 'var(--mantine-shadow-xs)' 
+                }}
+              >
+                <Image 
+                  src={brandLogo} 
+                  w={16} 
+                  h={10} 
+                  fit="contain" 
+                  alt="brand" 
+                />
+              </Box>
+            )}
+          </Box>
+          <Stack gap={0} style={{ minWidth: 0 }}>
+            <Text fw={700} size="sm" truncate>{acc.name}</Text>
+            <Text size="xs" c="dimmed">
+              {acc.last_updated ? format(new Date(acc.last_updated), 'yyyy/MM/dd') : '未更新'}
+            </Text>
+          </Stack>
+        </Group>
+        
+        <Group gap="xs" wrap="nowrap">
+          <Text fw={800} style={{ fontSize: '1.1rem' }} c={acc.is_liability ? 'red' : undefined}>
+            ¥ {acc.current_amount.toLocaleString()}
+          </Text>
+          
+          <Menu position="bottom-end" withinPortal shadow="md">
+            <Menu.Target>
+              <ActionIcon 
+                variant="subtle" 
+                color="gray" 
+                size="2rem"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreVertical size={16} />
+              </ActionIcon>
+            </Menu.Target>
+            <Menu.Dropdown onClick={(e) => e.stopPropagation()}>
+              <Menu.Label>管理</Menu.Label>
+              <Menu.Item 
+                leftSection={<Settings2 size={14} />} 
+                onClick={() => onEditAccount(acc)}
+              >
+                口座設定を変更
+              </Menu.Item>
+              <Menu.Divider />
+              <Menu.Item 
+                color="red" 
+                leftSection={<Trash2 size={14} />}
+                onClick={() => onDeleteAccount(acc.id)}
+              >
+                口座を削除
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
+        </Group>
+      </Group>
+    </Card>
+  );
+}
 
 export default function AssetsPage() {
   const [accounts, setAccounts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   
-  // 残高更新モーダル用
   const [opened, { open, close }] = useDisclosure(false)
   const [selectedAccount, setSelectedAccount] = useState<any>(null)
   const [inputAmount, setInputAmount] = useState<number | string>("")
 
-  // 口座情報編集モーダル用
   const [accOpened, { open: accOpen, close: accClose }] = useDisclosure(false)
   const [editingAccount, setEditingAccount] = useState<any>(null)
   const [accName, setAccName] = useState("")
@@ -44,8 +164,12 @@ export default function AssetsPage() {
 
   const loadData = async () => {
     setLoading(true)
-    const data = await getAccountsWithBalance()
-    setAccounts(data)
+    try {
+      const data = await getAccountsWithBalance()
+      setAccounts(data)
+    } catch (e) {
+      notifications.show({ message: 'データの取得に失敗しました', color: 'red' })
+    }
     setLoading(false)
   }
 
@@ -93,7 +217,11 @@ export default function AssetsPage() {
   const handleSaveAccount = async () => {
     if (!accName) return
     try {
-      const data = { name: accName, type: accType, is_liability: accIsLiability }
+      const data = { 
+        name: accName, 
+        type: accType, 
+        is_liability: accIsLiability
+      }
       if (editingAccount) {
         await updateAccount(editingAccount.id, data)
         notifications.show({ message: '口座情報を更新しました', color: 'green' })
@@ -149,74 +277,18 @@ export default function AssetsPage() {
         ) : (
           <Stack gap="sm">
             {accounts.map((acc) => (
-              <Card 
+              <AccountCard 
                 key={acc.id} 
-                padding="md" 
-                radius="md" 
-                withBorder
-                style={{ cursor: 'pointer' }}
-                onClick={() => handleEditBalance(acc)}
-              >
-                <Group justify="space-between" wrap="nowrap">
-                  <Group gap="md" style={{ flex: 1 }}>
-                    <ThemeIcon 
-                      size="xl" 
-                      radius="md" 
-                      variant="light" 
-                      color={acc.is_liability ? 'red' : 'indigo'}
-                    >
-                      {getIcon(acc.type)}
-                    </ThemeIcon>
-                    <Stack gap={0}>
-                      <Text fw={700} size="sm">{acc.name}</Text>
-                      <Text size="xs" c="dimmed">
-                        {acc.last_updated ? format(new Date(acc.last_updated), 'yyyy/MM/dd') : '未更新'}
-                      </Text>
-                    </Stack>
-                  </Group>
-                  
-                  <Group gap="xs">
-                    <Text fw={800} size="lg" c={acc.is_liability ? 'red' : undefined}>
-                      ¥ {acc.current_amount.toLocaleString()}
-                    </Text>
-                    
-                    <Menu position="bottom-end" withinPortal shadow="md">
-                      <Menu.Target>
-                        <ActionIcon 
-                          variant="subtle" 
-                          color="gray" 
-                          size="2rem"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <MoreVertical size={16} />
-                        </ActionIcon>
-                      </Menu.Target>
-                      <Menu.Dropdown onClick={(e) => e.stopPropagation()}>
-                        <Menu.Label>管理</Menu.Label>
-                        <Menu.Item 
-                          leftSection={<Settings2 size={14} />} 
-                          onClick={() => handleOpenAccModal(acc)}
-                        >
-                          口座設定を変更
-                        </Menu.Item>
-                        <Menu.Divider />
-                        <Menu.Item 
-                          color="red" 
-                          leftSection={<Trash2 size={14} />}
-                          onClick={() => handleDeleteAccount(acc.id)}
-                        >
-                          口座を削除
-                        </Menu.Item>
-                      </Menu.Dropdown>
-                    </Menu>
-                  </Group>
-                </Group>
-              </Card>
+                acc={acc} 
+                getIcon={getIcon} 
+                onEdit={handleEditBalance} 
+                onEditAccount={handleOpenAccModal}
+                onDeleteAccount={handleDeleteAccount}
+              />
             ))}
           </Stack>
         )}
 
-        {/* 1. 残高更新モーダル */}
         <Modal opened={opened} onClose={close} centered radius="lg" title={
           <Stack gap={0}>
             <Text fw={800}>残高を更新</Text>
@@ -240,7 +312,6 @@ export default function AssetsPage() {
           </Stack>
         </Modal>
 
-        {/* 2. 口座情報編集・追加モーダル */}
         <Modal opened={accOpened} onClose={accClose} centered radius="lg" title={
           <Text fw={800}>口座の{editingAccount ? '設定変更' : '新規登録'}</Text>
         }>

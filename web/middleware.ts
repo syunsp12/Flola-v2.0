@@ -17,6 +17,6 @@ export const config = {
      * - /api/webhook (GAS等からのアクセスはAPIキー認証なので除外)
      * - /api/status (ウィジェット用もAPIキー認証なので除外)
      */
-    '/((?!_next/static|_next/image|favicon.ico|login|api/webhook|api/status).*)',
+    '/((?!_next/static|_next/image|favicon.ico|login|api/webhook/.*|api/status).*)',
   ],
 }

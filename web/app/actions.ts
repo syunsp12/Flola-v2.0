@@ -13,7 +13,7 @@ type TransactionFilter = {
 
 // --- 1. 取引データの取得 ---
 export async function getTransactions(filter: TransactionFilter = {}) {
-  const supabase = await createClient() // ★クライアント生成
+  const supabase = await createClient()
   
   let query = supabase
     .from('transactions')
@@ -43,7 +43,7 @@ export async function getTransactions(filter: TransactionFilter = {}) {
   return data
 }
 
-// --- 2. 未承認データの取得 (旧互換用) ---
+// --- 2. 未承認データの取得 ---
 export async function getPendingTransactions() {
   return getTransactions({ status: 'pending' })
 }
@@ -61,8 +61,7 @@ export async function getPendingCount() {
 
 // --- 3. データの承認・更新 ---
 export async function updateTransaction(id: string, updates: any) {
-  const supabase = await createClient() // ★クライアント生成
-  // 手動更新時はAIフラグを折る
+  const supabase = await createClient()
   const cleanUpdates = { ...updates, is_ai_suggested: false }
 
   const { error } = await supabase
@@ -78,7 +77,7 @@ export async function updateTransaction(id: string, updates: any) {
 
 // --- 4. カテゴリ一覧の取得 ---
 export async function getCategories() {
-  const supabase = await createClient() // ★クライアント生成
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('categories')
     .select('*')
@@ -90,7 +89,7 @@ export async function getCategories() {
 
 // --- 5. 口座一覧と最新残高の取得 ---
 export async function getAccountsWithBalance() {
-  const supabase = await createClient() // ★クライアント生成
+  const supabase = await createClient()
   
   const { data: accounts } = await supabase
     .from('accounts')
@@ -120,7 +119,7 @@ export async function getAccountsWithBalance() {
 
 // --- 6. 資産残高の更新 ---
 export async function updateAssetBalance(accountId: string, amount: number, date: string) {
-  const supabase = await createClient() // ★クライアント生成
+  const supabase = await createClient()
   const { error } = await supabase
     .from('monthly_balances')
     .upsert(
@@ -136,7 +135,7 @@ export async function updateAssetBalance(accountId: string, amount: number, date
 
 // --- 7. ジョブ状態の取得 ---
 export async function getJobStatuses() {
-  const supabase = await createClient() // ★クライアント生成
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('job_status')
     .select('*')
@@ -148,7 +147,7 @@ export async function getJobStatuses() {
 
 // --- 8. ログの取得 ---
 export async function getSystemLogs() {
-  const supabase = await createClient() // ★クライアント生成
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('system_logs')
     .select('*')
@@ -161,7 +160,7 @@ export async function getSystemLogs() {
 
 // --- 9. カテゴリ操作 ---
 export async function createCategory(name: string, type: 'income' | 'expense', keywords: string[]) {
-  const supabase = await createClient() // ★クライアント生成
+  const supabase = await createClient()
   const { error } = await supabase
     .from('categories')
     .insert({ name, type, keywords })
@@ -173,7 +172,7 @@ export async function createCategory(name: string, type: 'income' | 'expense', k
 }
 
 export async function updateCategory(id: number, name: string, type: 'income' | 'expense', keywords: string[]) {
-  const supabase = await createClient() // ★クライアント生成
+  const supabase = await createClient()
   const { error } = await supabase
     .from('categories')
     .update({ name, type, keywords })
@@ -186,7 +185,7 @@ export async function updateCategory(id: number, name: string, type: 'income' | 
 }
 
 export async function deleteCategory(id: number) {
-  const supabase = await createClient() // ★クライアント生成
+  const supabase = await createClient()
   const { error } = await supabase
     .from('categories')
     .delete()
@@ -215,9 +214,8 @@ export async function createTransaction(data: {
       amount: data.amount,
       description: data.description,
       category_id: data.category_id,
-      type: 'expense', // デフォルトは支出
+      type: 'expense',
       status: data.status || 'confirmed',
-      // account_id は一旦null (または手動入力用のダミー口座があればそれを指定)
     })
 
   if (error) throw new Error(error.message)
@@ -227,84 +225,39 @@ export async function createTransaction(data: {
 }
 
 // --- 11. AIカテゴリ一括適用 ---
-
 export async function applyAiCategories(targets: { id: string, description: string | null }[]) {
-
   const supabase = await createClient()
-
-  
-
-  // 1. 重複を除いた摘要リストを作成
-
   const uniqueDescriptions = Array.from(new Set(targets.map(t => t.description || "").filter(d => d)))
-
-  
-
   if (uniqueDescriptions.length === 0) return { count: 0 }
 
-
-
-  // 2. AI予測を実行 (既存の関数を再利用)
-
-  const suggestions = await predictCategories(uniqueDescriptions)
-
-  
-
-  if (Object.keys(suggestions).length === 0) return { count: 0 }
-
-
-
-  // 3. DBを一括更新 (Promise.allで並列実行)
+  const suggestions: Record<string, number | null> = await predictCategories(uniqueDescriptions)
+  if (!suggestions || Object.keys(suggestions).length === 0) return { count: 0 }
 
   let updateCount = 0
-
   const updates = targets.map(async (t) => {
-
     if (!t.description) return
-
     const categoryId = suggestions[t.description]
-
-    
-
     if (categoryId) {
-
       const { error } = await supabase
-
         .from('transactions')
-
-        .update({
-          category_id: categoryId, 
-          is_ai_suggested: true 
-        })
-
+        .update({ category_id: categoryId, is_ai_suggested: true })
         .eq('id', t.id)
-      
-
       if (!error) updateCount++
-
     }
-
   })
 
-
-
   await Promise.all(updates)
-
-
-
   revalidatePath('/inbox')
-
   return { success: true, count: updateCount }
-
 }
-
-
 
 // --- 12. 口座管理 ---
 export async function createAccount(data: {
   name: string
   type: string
   is_liability: boolean
+  icon_url?: string | null
+  card_brand?: string | null
 }) {
   const supabase = await createClient()
   const { error } = await supabase.from('accounts').insert(data)
@@ -318,6 +271,8 @@ export async function updateAccount(id: string, data: {
   name: string
   type: string
   is_liability: boolean
+  icon_url?: string | null
+  card_brand?: string | null
 }) {
   const supabase = await createClient()
   const { error } = await supabase.from('accounts').update(data).eq('id', id)
@@ -336,100 +291,61 @@ export async function deleteAccount(id: string) {
   return { success: true }
 }
 
+// --- 13. 過去履歴取得リクエスト ---
 export async function requestHistoryFetch(startDate: string, endDate: string) {
   const gasUrl = process.env.GMAIL_GAS_URL
   const apiKey = process.env.ADMIN_API_KEY
-
   if (!gasUrl) throw new Error("GMAIL_GAS_URL が設定されていません")
 
-  // GASへ直接リクエスト送信
   const response = await fetch(gasUrl, {
     method: 'POST',
-    body: JSON.stringify({
-      key: apiKey,
-      startDate,
-      endDate
-    }),
+    body: JSON.stringify({ key: apiKey, startDate, endDate }),
   })
 
-  if (!response.ok) {
-    throw new Error("GASへのリクエストに失敗しました")
-  }
-
+  if (!response.ok) throw new Error("GASへのリクエストに失敗しました")
   const result = await response.json()
-  
-  if (result.error) {
-    throw new Error(result.error)
-  }
+  if (result.error) throw new Error(result.error)
 
   revalidatePath('/inbox')
   return { success: true, count: result.count }
 }
 
 // --- AI予測 (Gemini) ---
-
-export async function predictCategories(descriptions: string[]) {
-
+export async function predictCategories(descriptions: string[]): Promise<Record<string, number | null>> {
   const apiKey = process.env.GOOGLE_API_KEY
-
   if (!apiKey) return {}
-  
-
-  // サーバーアクション内でカテゴリ取得
 
   const categories = await getCategories()
-
   if (!categories || categories.length === 0) return {}
-
-
 
   const catText = categories.map((c: any) => 
     `ID:${c.id}, Name:${c.name}, Keywords:${c.keywords?.join(',')}`
   ).join('\n')
 
-
-
   const prompt = `
-
     あなたは家計簿のAIアシスタントです。
-
     以下の「カテゴリリスト」に基づき、「対象の摘要」に適切な「カテゴリID」を推測してください。
-
     
-
     # カテゴリリスト
-
     ${catText}
-
     
-
     # 対象の摘要
-
     ${JSON.stringify(descriptions)}
-
     
-
     # 制約
-
     出力は以下のJSONフォーマットのみ。Markdown不要。確信がなければID: null。
-
-    {
-      "摘要1": カテゴリID,
-      "摘要2": カテゴリID
-    }
-  `;
+    {"SUKIYA": 2, "AMAZON": 5}
+  `
 
   try {
-    const { GoogleGenerativeAI } = await import('@google/generative-ai');
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-    const parsed = JSON.parse(text);
-    return parsed;
-  } catch (error) {
-    console.error('AI予測エラー:', error);
-    return {};
+    const genAI = new GoogleGenerativeAI(apiKey)
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
+    const result = await model.generateContent(prompt)
+    const response = await result.response
+    const text = response.text().replace(/```json|```/g, '').trim()
+    return JSON.parse(text)
+  } catch (e) {
+    console.error("AI Error:", e)
+    return {}
   }
 }

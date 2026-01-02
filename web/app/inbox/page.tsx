@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { getTransactions, updateTransaction, applyAiCategories, getCategories, createTransaction, requestHistoryFetch } from '@/app/actions'
+import { getTransactions, updateTransaction, applyAiCategories, getCategories, createTransaction, requestHistoryFetch, getAccountsWithBalance } from '@/app/actions'
 import { 
   Card, 
   Text, 
@@ -24,16 +24,19 @@ import {
   Skeleton,
   Box,
   UnstyledButton,
-  rem
+  rem,
+  Image
 } from "@mantine/core"
 import { DatePickerInput } from '@mantine/dates'
 import { useDisclosure } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
-import { Check, X, Wand2, CreditCard, CalendarDays, RefreshCw, Plus, PenLine, History, Wallet, ArrowUpRight, ArrowDownLeft } from 'lucide-react'
+import { Check, X, Wand2, CreditCard, CalendarDays, RefreshCw, Plus, PenLine, History, Wallet, ArrowUpRight, ArrowDownLeft, Settings2, Landmark } from 'lucide-react'
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageContainer } from '@/components/layout/page-container'
+import { getSmartIconUrl, getCardBrandLogo } from '@/lib/utils/icon-helper'
+import { LOGO_MASTER } from '@/lib/constants/logos'
 
 type Category = { id: number; name: string }
 
@@ -63,22 +66,40 @@ function GeminiIcon({ size = 16, ...props }: { size?: number } & React.Component
   )
 }
 
-// 各取引アイテムのコンポーネント (個別状態管理のため)
-
-
+// 各取引アイテムのコンポーネント
 function TransactionItem({ 
   t, 
   index, 
   categoryOptions, 
+  accountOptions,
+  accountsRaw,
   handleFieldChange, 
   handleIgnore, 
   handleApprove 
 }: any) {
   const [editingField, setEditingField] = useState<string | null>(null)
+  const [imageError, setImageError] = useState(false)
+  
   const isPending = t.status === 'pending'
   const isExpense = t.type === 'expense'
 
   const stopEditing = () => setEditingField(null)
+
+  // 現在の口座情報の詳細を取得
+  const currentAccount = accountsRaw.find((a: any) => a.id === t.from_account_id)
+  const accountIcon = getSmartIconUrl(currentAccount?.name || '', currentAccount?.icon_url)
+  const brandKey = Object.keys(LOGO_MASTER.brands).find(key => 
+    currentAccount?.name?.toLowerCase().includes(key.toLowerCase())
+  )
+  const brandLogo = getCardBrandLogo(brandKey || null)
+
+  const getAccountTypeIcon = (type: string) => {
+    switch(type) {
+      case 'bank': return <Landmark size={14} />
+      case 'credit_card': return <CreditCard size={14} />
+      default: return <Wallet size={14} />
+    }
+  }
 
   return (
     <motion.div
@@ -108,12 +129,10 @@ function TransactionItem({
           <Badge 
             color="green" 
             variant="light" 
-            style={{ 
-              position: 'absolute', 
-              top: -8, 
-              right: 10, 
-              boxShadow: 'var(--mantine-shadow-sm)' 
-            }}
+            pos="absolute" 
+            top={-8} 
+            right={10} 
+            style={{ boxShadow: 'var(--mantine-shadow-sm)' }}
           >
             Approved
           </Badge>
@@ -133,14 +152,24 @@ function TransactionItem({
                 }}
                 onBlur={stopEditing}
                 autoFocus
-                valueFormat="YYYY/MM/DD"
-                styles={{ input: { width: rem(120) } }}
+                valueFormat="MM/dd"
+                styles={{ input: { width: rem(60), padding: 0, textAlign: 'center' } }}
               />
             ) : (
               <UnstyledButton onClick={() => isPending && setEditingField('date')}>
-                <Group gap={4} className={isPending ? "editable-field" : ""}>
-                  <CalendarDays size={12} color="var(--mantine-color-gray-5)" />
-                  <Text size="xs" c="dimmed" fw={700}>{format(new Date(t.date), 'yyyy/MM/dd')}</Text>
+                <Group gap={4} className={isPending ? "editable-field px-1" : ""}>
+                  <ThemeIcon 
+                    variant="light" 
+                    color={isExpense ? 'red' : 'teal'} 
+                    size="lg" 
+                    radius="xl"
+                  >
+                    {isExpense ? <ArrowUpRight size={18} /> : <ArrowDownLeft size={18} />}
+                  </ThemeIcon>
+                  <Stack gap={0} align="flex-start">
+                    <Text size="xs" fw={700} c="dimmed" lh={1}>{format(new Date(t.date), 'yyyy')}</Text>
+                    <Text size="lg" fw={800} lh={1}>{format(new Date(t.date), 'MM/dd')}</Text>
+                  </Stack>
                 </Group>
               </UnstyledButton>
             )}
@@ -172,64 +201,112 @@ function TransactionItem({
             )}
           </Group>
 
-          {/* 中段：内容とアイコン */}
-          <Group gap="xs" wrap="nowrap" align="center">
-            <ThemeIcon variant="light" color={isExpense ? 'red' : 'teal'} size="sm" radius="xl">
-              {isExpense ? <ArrowUpRight size={12} /> : <ArrowDownLeft size={12} />}
-            </ThemeIcon>
-            
-            {isPending && editingField === 'description' ? (
-              <TextInput
-                size="sm"
-                style={{ flex: 1 }}
-                value={t.description || ''}
-                onChange={(e) => handleFieldChange(t.id, 'description', e.currentTarget.value)}
+          {/* 中段：摘要 */}
+          {isPending && editingField === 'description' ? (
+            <TextInput
+              size="md"
+              value={t.description || ''}
+              onChange={(e) => handleFieldChange(t.id, 'description', e.currentTarget.value)}
+              onBlur={stopEditing}
+              onKeyDown={(e) => e.key === 'Enter' && stopEditing()}
+              autoFocus
+              styles={{ input: { fontWeight: 700 } }}
+            />
+          ) : (
+            <UnstyledButton 
+              onClick={() => isPending && setEditingField('description')}
+              style={{ textAlign: 'left' }}
+            >
+              <Text 
+                fw={700} 
+                size="md" 
+                lineClamp={1} 
+                className={isPending ? "editable-field p-1" : ""}
+              >
+                {t.description || '(内容なし)'}
+              </Text>
+            </UnstyledButton>
+          )}
+
+          <Divider my="xs" color="gray.1" />
+          
+          {/* 下段: メタデータ */}
+          <Group justify="space-between" align="center">
+            {/* 口座選択 */}
+            {isPending && editingField === 'account' ? (
+              <Select
+                size="xs"
+                placeholder="支払方法"
+                data={accountOptions}
+                value={t.from_account_id}
+                onChange={(val) => {
+                  handleFieldChange(t.id, 'from_account_id', val)
+                  stopEditing()
+                }}
                 onBlur={stopEditing}
-                onKeyDown={(e) => e.key === 'Enter' && stopEditing()}
                 autoFocus
+                searchable
+                styles={{ input: { width: rem(140) } }}
               />
             ) : (
-              <UnstyledButton 
-                onClick={() => isPending && setEditingField('description')}
-                style={{ flex: 1, minWidth: 0 }}
-              >
-                <Text 
-                  fw={700} 
-                  size="sm" 
-                  lineClamp={1} 
-                  className={isPending ? "editable-field p-1" : ""}
-                >
-                  {t.description || '(内容なし)'}
-                </Text>
+              <UnstyledButton onClick={() => isPending && setEditingField('account')}>
+                <Group gap={8} wrap="nowrap" className={isPending ? "editable-field px-1" : ""}>
+                  <Box pos="relative">
+                    {(accountIcon && !imageError) ? (
+                      <Image
+                        src={accountIcon}
+                        alt=""
+                        w={28} h={28}
+                        radius="xs"
+                        onError={() => setImageError(true)}
+                      />
+                    ) : (
+                      <ThemeIcon variant="light" size={28} color="gray" radius="md">
+                        <CreditCard size={16} />
+                      </ThemeIcon>
+                    )}
+                    {brandLogo && (
+                      <Box 
+                        pos="absolute" 
+                        bottom={-3} 
+                        right={-3} 
+                        bg="white" 
+                        p={1.5} 
+                        style={{ 
+                          border: '1px solid var(--mantine-color-gray-2)',
+                          borderRadius: 'var(--mantine-radius-xs)',
+                          display: 'flex', 
+                          boxShadow: 'var(--mantine-shadow-xs)' 
+                        }}
+                      >
+                        <Image src={brandLogo} w={12} h={8} fit="contain" />
+                      </Box>
+                    )}
+                  </Box>
+                  <Text size="xs" c="dimmed" fw={700} truncate style={{ maxWidth: rem(100) }}>
+                    {currentAccount?.name || 'Unknown'}
+                  </Text>
+                </Group>
               </UnstyledButton>
             )}
-          </Group>
 
-          {/* 下段：口座とカテゴリ */}
-          <Group justify="space-between" align="center">
-            <Group gap={4}>
-              <CreditCard size={12} color="var(--mantine-color-gray-5)" />
-              <Text size="xs" c="dimmed" fw={500}>
-                {(Array.isArray(t.accounts) ? t.accounts[0]?.name : t.accounts?.name) || 'Unknown Account'}
-              </Text>
-            </Group>
-            
+            {/* カテゴリ選択 */}
             <Select
               variant="unstyled"
-              placeholder="カテゴリを選択..."
+              placeholder="カテゴリを選択"
               data={categoryOptions}
               value={t.category_id ? t.category_id.toString() : null}
               onChange={(val) => handleFieldChange(t.id, 'category_id', val ? Number(val) : null)}
-              disabled={t.status === 'confirmed'}
+              disabled={!isPending}
               searchable
               size="xs"
-              leftSection={t.is_ai_suggested && <GeminiIcon size={18} />}
+              leftSection={t.is_ai_suggested && <GeminiIcon size={16} />}
               styles={{ 
                 input: { 
                   fontWeight: 700, 
-                  color: 'var(--mantine-color-indigo-7)',
+                  color: t.category_id ? 'var(--mantine-color-indigo-7)' : 'var(--mantine-color-gray-5)',
                   textAlign: 'right',
-                  paddingRight: rem(20)
+                  paddingRight: 0
                 } 
               }}
             />
@@ -270,6 +347,8 @@ function TransactionItem({
 function TransactionList({ 
   transactions, 
   categoryOptions, 
+  accountOptions,
+  accountsRaw,
   handleFieldChange,
   handleIgnore, 
   handleApprove 
@@ -297,6 +376,8 @@ function TransactionList({
             t={t}
             index={index}
             categoryOptions={categoryOptions}
+            accountOptions={accountOptions}
+            accountsRaw={accountsRaw}
             handleFieldChange={handleFieldChange}
             handleIgnore={handleIgnore}
             handleApprove={handleApprove}
@@ -313,6 +394,7 @@ function InboxContent() {
 
   const [transactions, setTransactions] = useState<any[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [accounts, setAccounts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [aiLoading, setAiLoading] = useState(false)
 
@@ -334,15 +416,17 @@ function InboxContent() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const [transData, catData] = await Promise.all([
+      const [transData, catData, accData] = await Promise.all([
         getTransactions({
           status: (activeTab as any) || 'pending'
         }),
-        categories.length > 0 ? Promise.resolve(categories) : getCategories()
+        categories.length > 0 ? Promise.resolve(categories) : getCategories(),
+        getAccountsWithBalance()
       ])
       
       setTransactions(transData || [])
       if (catData.length > 0) setCategories(catData)
+      setAccounts(accData || [])
     } catch (e) {
       notifications.show({ title: 'Error', message: 'データの取得に失敗しました', color: 'red' })
     }
@@ -388,7 +472,8 @@ function InboxContent() {
       category_id: t.category_id,
       amount: t.amount,
       date: t.date,
-      description: t.description
+      description: t.description,
+      from_account_id: t.from_account_id
     })
     notifications.show({ message: '承認しました', color: 'green' })
   }
@@ -401,7 +486,7 @@ function InboxContent() {
 
   const handleFieldChange = (transactionId: string, field: string, value: any) => {
     setTransactions(prev => prev.map(t => 
-      t.id === transactionId ? { ...t, [field]: value, is_ai_suggested: field === 'category_id' ? false : t.is_ai_suggested } : t
+      t.id === transactionId ? { ...t, [field]: value, is_ai_suggested: (field === 'category_id' || field === 'from_account_id') ? false : t.is_ai_suggested } : t
     ))
   }
 
@@ -431,8 +516,8 @@ function InboxContent() {
   }
 
   const categoryOptions = categories.map(c => ({ value: c.id.toString(), label: c.name }))
+  const accountOptions = accounts.map(acc => ({ value: acc.id, label: acc.name }))
 
-  // 共通のタブリストスタイル
   const tabListStyle = {
     backgroundColor: 'var(--mantine-color-gray-1)',
     padding: '2px',
@@ -513,6 +598,8 @@ function InboxContent() {
                   <TransactionList 
                     transactions={transactions} 
                     categoryOptions={categoryOptions}
+                    accountOptions={accountOptions}
+                    accountsRaw={accounts}
                     handleFieldChange={handleFieldChange}
                     handleIgnore={handleIgnore}
                     handleApprove={handleApprove}
@@ -539,6 +626,8 @@ function InboxContent() {
                 <TransactionList 
                   transactions={transactions} 
                   categoryOptions={categoryOptions}
+                  accountOptions={accountOptions}
+                  accountsRaw={accounts}
                   handleFieldChange={handleFieldChange}
                   handleIgnore={handleIgnore}
                   handleApprove={handleApprove}
@@ -603,7 +692,6 @@ function InboxContent() {
         </Menu>
 
         <Modal opened={opened} onClose={close} title="手動入力" centered>
-          {/* ... existing modal ... */}
           <Stack gap="md">
             <DatePickerInput
               label="日付"
@@ -640,7 +728,6 @@ function InboxContent() {
           </Stack>
         </Modal>
 
-        {/* 過去履歴取得モーダル */}
         <Modal opened={historyOpened} onClose={historyClose} title="過去履歴を取り込む" centered>
           <Stack gap="md">
             <Text size="sm" c="dimmed">
