@@ -342,6 +342,46 @@ export async function requestHistoryFetch(startDate: string, endDate: string) {
   return { success: true }
 }
 
+// --- 14. 外部ジョブの実行 (GitHub Actions) ---
+export async function triggerJob(jobId: string) {
+  const GITHUB_TOKEN = process.env.GITHUB_TOKEN
+  const REPO_OWNER = process.env.GITHUB_OWNER
+  const REPO_NAME = process.env.GITHUB_REPO
+  
+  if (!GITHUB_TOKEN || !REPO_OWNER || !REPO_NAME) {
+    throw new Error("GitHub credentials not configured.")
+  }
+
+  // ワークフローファイル名の決定
+  let workflowId = ""
+  if (jobId.startsWith("scraper_")) {
+    workflowId = "investment_scraper.yml"
+  } else {
+    throw new Error(`Unknown job type: ${jobId}`)
+  }
+
+  const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/workflows/${workflowId}/dispatches`
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${GITHUB_TOKEN}`,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+    body: JSON.stringify({
+      ref: 'main',
+    })
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`GitHub API Error: ${error}`)
+  }
+
+  return { success: true }
+}
+
 // --- AI予測 (Gemini) ---
 export async function predictCategories(descriptions: string[]): Promise<Record<string, number | null>> {
   const apiKey = process.env.GOOGLE_API_KEY

@@ -9,7 +9,8 @@ import {
   updateCategory, 
   deleteCategory,
   getAccountsWithBalance,
-  updateAccount
+  updateAccount,
+  triggerJob
 } from '@/app/actions'
 import { 
   Card, 
@@ -155,6 +156,15 @@ export default function AdminPage() {
       case 'failed': return { icon: <AlertCircle size={14} />, color: "red" }
       case 'running': return { icon: <Activity size={14} />, color: "blue" }
       default: return { icon: <Clock size={14} />, color: "gray" }
+    }
+  }
+
+  const handleTriggerJob = async (jobId: string) => {
+    try {
+      await triggerJob(jobId)
+      notifications.show({ title: 'Success', message: 'Job triggered successfully', color: 'green' })
+    } catch (e: any) {
+      notifications.show({ title: 'Error', message: e.message, color: 'red' })
     }
   }
 
@@ -348,6 +358,15 @@ export default function AdminPage() {
                              <Text size="xs" ff="monospace" c="dimmed">
                                {job.last_run_at ? format(new Date(job.last_run_at), 'MM/dd HH:mm') : 'Never'}
                              </Text>
+                             <Button 
+                               size="compact-xs" 
+                               variant="light" 
+                               color="indigo" 
+                               onClick={() => handleTriggerJob(job.job_id)}
+                               leftSection={<RefreshCw size={10} />}
+                             >
+                               Run Now
+                             </Button>
                            </Group>
                            {job.message && (
                              <Text size="xs" mt="sm" p="xs" bg="gray.1" style={{ borderRadius: 4, fontFamily: 'monospace' }} lineClamp={2}>
