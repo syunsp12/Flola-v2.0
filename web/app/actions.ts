@@ -296,21 +296,48 @@ export async function deleteAccount(id: string) {
 export async function requestHistoryFetch(startDate: string, endDate: string) {
   const supabase = await createClient()
 
-  // デバッグ用：ユーザー情報の確認
+  // ユーザー情報の確認
   const { data: { user } } = await supabase.auth.getUser()
   
-  const { error } = await supabase
+  // 1. DBにリクエストを保存
+  const { data: requestRecord, error } = await supabase
     .from('history_fetch_requests')
     .insert({
       start_date: startDate,
       end_date: endDate,
       status: 'pending'
     })
+    .select('id')
+    .single()
 
   if (error) {
     console.error('History fetch error:', error, 'User:', user?.id)
     throw new Error(`${error.message} (User: ${user?.id ?? 'anon'})`)
   }
+
+  // 2. GAS Web App をキックする (非同期)
+  const GAS_APP_URL = process.env.GAS_APP_URL
+  const ADMIN_API_KEY = process.env.ADMIN_API_KEY
+
+  if (GAS_APP_URL) {
+    // GASの処理は時間がかかる可能性があるため、レスポンスを待たずにバックグラウンドで実行させるか、
+    // タイムアウトを考慮して呼び出します。
+    fetch(GAS_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        key: ADMIN_API_KEY,
+        startDate: startDate,
+        endDate: endDate,
+        requestId: requestRecord.id
+      }),
+    }).catch(err => {
+      console.error('GAS Trigger Error:', err)
+    })
+  } else {
+    console.warn('GAS_APP_URL is not set. GAS will not be triggered automatically.')
+  }
+
   revalidatePath('/inbox')
   return { success: true }
 }
