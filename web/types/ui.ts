@@ -25,6 +25,8 @@ export interface Account {
   type: AccountType;
   is_liability: boolean;
   balance: number;
+  icon_url?: string | null;
+  card_brand?: string | null;
 }
 
 export interface Category {

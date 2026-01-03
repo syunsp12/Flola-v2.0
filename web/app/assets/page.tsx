@@ -19,11 +19,14 @@ import {
   Select,
   Checkbox,
   Image,
-  Box
+  Box,
+  rem,
+  Divider
 } from "@mantine/core"
 import { useDisclosure } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
-import { Landmark, Wallet, CreditCard, RefreshCw, Plus, Trash2, MoreVertical, Settings2 } from 'lucide-react'
+import { Dropzone, IMAGE_MIME_TYPE } from '@mantine/dropzone'
+import { Landmark, Wallet, CreditCard, RefreshCw, Plus, Trash2, MoreVertical, Settings2, Upload, ImageIcon, X, Image as LucideImage } from 'lucide-react'
 import { format } from 'date-fns'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageContainer } from '@/components/layout/page-container'
@@ -34,12 +37,7 @@ import { LOGO_MASTER } from '@/lib/constants/logos'
 function AccountCard({ acc, getIcon, onEdit, onEditAccount, onDeleteAccount }: any) {
   const [imageError, setImageError] = useState(false);
   const iconUrl = getSmartIconUrl(acc.name, acc.icon_url);
-  
-  // 名前からブランドロゴを自動判定（マスタベース）
-  const brandKey = Object.keys(LOGO_MASTER.brands).find(key => 
-    acc.name.toLowerCase().includes(key.toLowerCase())
-  );
-  const brandLogo = getCardBrandLogo(brandKey || null);
+  const brandLogo = getCardBrandLogo(acc.card_brand);
 
   return (
     <Card 
@@ -60,7 +58,6 @@ function AccountCard({ acc, getIcon, onEdit, onEditAccount, onDeleteAccount }: a
                 h={40}
                 radius="md"
                 onError={() => setImageError(true)}
-                fallbackSrc={undefined}
               />
             ) : (
               <ThemeIcon 
@@ -73,17 +70,16 @@ function AccountCard({ acc, getIcon, onEdit, onEditAccount, onDeleteAccount }: a
               </ThemeIcon>
             )}
 
-            {/* ブランドロゴのオーバーレイ表示（マスタに一致する場合） */}
             {brandLogo && (
               <Box 
                 pos="absolute" 
-                bottom={-4} 
-                right={-4} 
+                bottom={-3} 
+                right={-3} 
                 bg="white" 
-                p={2} 
+                p={1.5} 
                 style={{ 
                   border: '1px solid var(--mantine-color-gray-2)',
-                  borderRadius: 'var(--mantine-radius-xs)',
+                  borderRadius: rem(2),
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -92,8 +88,8 @@ function AccountCard({ acc, getIcon, onEdit, onEditAccount, onDeleteAccount }: a
               >
                 <Image 
                   src={brandLogo} 
-                  w={16} 
-                  h={10} 
+                  w={12} 
+                  h={8} 
                   fit="contain" 
                   alt="brand" 
                 />
@@ -161,6 +157,8 @@ export default function AssetsPage() {
   const [accName, setAccName] = useState("")
   const [accType, setAccType] = useState("bank")
   const [accIsLiability, setAccIsLiability] = useState(false)
+  const [accIconUrl, setAccIconUrl] = useState("")
+  const [accCardBrand, setAccCardBrand] = useState<string | null>(null)
 
   const loadData = async () => {
     setLoading(true)
@@ -191,11 +189,15 @@ export default function AssetsPage() {
       setAccName(account.name)
       setAccType(account.type)
       setAccIsLiability(account.is_liability)
+      setAccIconUrl(account.icon_url || "")
+      setAccCardBrand(account.card_brand || null)
     } else {
       setEditingAccount(null)
       setAccName("")
       setAccType("bank")
       setAccIsLiability(false)
+      setAccIconUrl("")
+      setAccCardBrand(null)
     }
     accOpen()
   }
@@ -220,7 +222,9 @@ export default function AssetsPage() {
       const data = { 
         name: accName, 
         type: accType, 
-        is_liability: accIsLiability
+        is_liability: accIsLiability,
+        icon_url: accIconUrl || null,
+        card_brand: accCardBrand || null
       }
       if (editingAccount) {
         await updateAccount(editingAccount.id, data)
@@ -341,6 +345,81 @@ export default function AssetsPage() {
               checked={accIsLiability}
               onChange={(e) => setAccIsLiability(e.currentTarget.checked)}
             />
+
+            <Divider label="ロゴ・アイコン設定" labelPosition="center" my="sm" />
+
+            <Group gap="md" align="center">
+              <Image 
+                src={accIconUrl || getSmartIconUrl(accName || "")} 
+                w={50} h={50} 
+                radius="md" 
+                fallbackSrc="https://placehold.co/50x50?text=?"
+              />
+              <Box>
+                <Text fw={700} size="sm">表示プレビュー</Text>
+                <Text size="xs" c="dimmed">現在のアイコンまたは自動推測</Text>
+              </Box>
+            </Group>
+
+            <Dropzone
+              onDrop={(files) => {
+                const file = files[0];
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                  setAccIconUrl(event.target?.result as string);
+                };
+                reader.readAsDataURL(file);
+              }}
+              onReject={() => notifications.show({ message: '無効なファイルです', color: 'red' })}
+              maxSize={3 * 1024 ** 2}
+              accept={IMAGE_MIME_TYPE}
+              radius="md"
+              useFsAccessApi={false}
+            >
+              <Group justify="center" gap="xl" mih={100} style={{ pointerEvents: 'none' }}>
+                <Dropzone.Accept>
+                  <Upload size={30} color="var(--mantine-color-blue-6)" />
+                </Dropzone.Accept>
+                <Dropzone.Reject>
+                  <X size={30} color="var(--mantine-color-red-6)" />
+                </Dropzone.Reject>
+                <Dropzone.Idle>
+                  <LucideImage size={30} color="var(--mantine-color-dimmed)" />
+                </Dropzone.Idle>
+
+                <div>
+                  <Text size="xs" inline>画像をドラッグ＆ドロップ</Text>
+                  <Text size="xs" c="dimmed" inline mt={4}>
+                    またはクリックして選択 (3MBまで)
+                  </Text>
+                </div>
+              </Group>
+            </Dropzone>
+            
+            <TextInput
+              label="または ロゴURL を直接入力"
+              placeholder="https://.../logo.png"
+              value={accIconUrl}
+              onChange={(e) => setAccIconUrl(e.currentTarget.value)}
+              size="xs"
+            />
+
+            <Select
+              label="カードブランド"
+              placeholder="選択してください"
+              data={[
+                { value: 'visa', label: 'VISA' },
+                { value: 'mastercard', label: 'Mastercard' },
+                { value: 'jcb', label: 'JCB' },
+                { value: 'amex', label: 'American Express' },
+                { value: 'diners', label: 'Diners Club' },
+              ]}
+              value={accCardBrand}
+              onChange={setAccCardBrand}
+              clearable
+              size="xs"
+            />
+
             <Button fullWidth mt="md" onClick={handleSaveAccount}>
               {editingAccount ? '変更を保存' : '口座を作成'}
             </Button>

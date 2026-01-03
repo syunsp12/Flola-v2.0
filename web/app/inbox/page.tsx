@@ -88,10 +88,7 @@ function TransactionItem({
   // 現在の口座情報の詳細を取得
   const currentAccount = accountsRaw.find((a: any) => a.id === t.from_account_id)
   const accountIcon = getSmartIconUrl(currentAccount?.name || '', currentAccount?.icon_url)
-  const brandKey = Object.keys(LOGO_MASTER.brands).find(key => 
-    currentAccount?.name?.toLowerCase().includes(key.toLowerCase())
-  )
-  const brandLogo = getCardBrandLogo(brandKey || null)
+  const brandLogo = getCardBrandLogo(currentAccount?.card_brand)
 
   const getAccountTypeIcon = (type: string) => {
     switch(type) {

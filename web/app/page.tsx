@@ -44,7 +44,11 @@ async function getDashboardData() {
   const sixMonthsAgo = startOfMonth(subMonths(now, 5)).toISOString()
   const { data: transactions } = await supabase
     .from('transactions')
-    .select('id, amount, type, date, category_id, description, categories(name)')
+    .select(`
+      id, amount, type, date, category_id, description, 
+      categories(name),
+      accounts!from_account_id(name, icon_url, card_brand)
+    `)
     .eq('status', 'confirmed')
     .gte('date', sixMonthsAgo)
     .order('date', { ascending: true })

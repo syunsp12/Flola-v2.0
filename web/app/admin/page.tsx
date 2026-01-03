@@ -32,6 +32,7 @@ import {
   Switch,
   Image,
   SegmentedControl,
+  Select,
   rem
 } from "@mantine/core"
 import { useDisclosure } from '@mantine/hooks'
@@ -58,6 +59,7 @@ type Account = {
   type: string
   is_liability: boolean
   icon_url: string | null
+  card_brand: string | null
 }
 
 export default function AdminPage() {
@@ -74,11 +76,6 @@ export default function AdminPage() {
   
   const [opened, { open, close }] = useDisclosure(false)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
-
-  // ロゴ編集用
-  const [logoOpened, { open: logoOpen, close: logoClose }] = useDisclosure(false)
-  const [editingLogoAccount, setEditingLogoAccount] = useState<Account | null>(null)
-  const [tempLogoUrl, setTempLogoUrl] = useState("")
   
   const [catName, setCatName] = useState("")
   const [catType, setCatType] = useState<'income' | 'expense'>("expense")
@@ -176,29 +173,6 @@ export default function AdminPage() {
     border: 'none'
   }
 
-  const handleOpenLogoModal = (account: Account) => {
-    setEditingLogoAccount(account)
-    setTempLogoUrl(account.icon_url || "")
-    logoOpen()
-  }
-
-  const handleSaveLogo = async () => {
-    if (!editingLogoAccount) return
-    try {
-      await updateAccount(editingLogoAccount.id, {
-        name: editingLogoAccount.name,
-        type: editingLogoAccount.type,
-        is_liability: editingLogoAccount.is_liability,
-        icon_url: tempLogoUrl || null
-      })
-      notifications.show({ message: 'ロゴを更新しました', color: 'green' })
-      loadData()
-      logoClose()
-    } catch (e: any) {
-      notifications.show({ message: e.message, color: 'red' })
-    }
-  }
-
   return (
     <Tabs value={activeTab} onChange={setActiveTab} variant="pills">
       <PageHeader
@@ -206,7 +180,6 @@ export default function AdminPage() {
         tabs={
           <Tabs.List grow style={tabListStyle}>
             <Tabs.Tab value="categories" leftSection={<Tag size={14} />} style={tabStyle}>Categories</Tabs.Tab>
-            <Tabs.Tab value="logos" leftSection={<ImageIcon size={14} />} style={tabStyle}>Logos</Tabs.Tab>
             <Tabs.Tab value="settings" leftSection={<User size={14} />} style={tabStyle}>Settings</Tabs.Tab>
             <Tabs.Tab value="system" leftSection={<Activity size={14} />} style={tabStyle}>System</Tabs.Tab>
           </Tabs.List>
@@ -226,39 +199,6 @@ export default function AdminPage() {
             exit={{ opacity: 0, x: -10 }}
             transition={{ duration: 0.2 }}
           >
-            {/* --- ロゴ管理タブ --- */}
-            <Tabs.Panel value="logos" pt="md">
-              <Stack gap="md">
-                <Text size="sm" c="dimmed" px="xs">
-                  各口座に表示されるアイコンを管理します。空欄の場合は口座名から自動的に推測されます。
-                </Text>
-                {accounts.map((acc) => {
-                  const smartIcon = getSmartIconUrl(acc.name, acc.icon_url)
-                  return (
-                    <Card key={acc.id} padding="sm" radius="md" withBorder>
-                      <Group justify="space-between">
-                        <Group gap="md">
-                          <Image 
-                            src={smartIcon} 
-                            w={32} h={32} 
-                            radius="md" 
-                            fallbackSrc="https://placehold.co/32x32?text=?" 
-                          />
-                          <Stack gap={0}>
-                            <Text fw={700} size="sm">{acc.name}</Text>
-                            <Text size="10px" c="dimmed" tt="uppercase">{acc.type}</Text>
-                          </Stack>
-                        </Group>
-                        <ActionIcon variant="light" color="indigo" onClick={() => handleOpenLogoModal(acc)}>
-                          <Pencil size={14} />
-                        </ActionIcon>
-                      </Group>
-                    </Card>
-                  )
-                })}
-              </Stack>
-            </Tabs.Panel>
-
             {/* --- 設定タブ --- */}
             <Tabs.Panel value="settings" pt="md">
               <Stack gap="xl">
@@ -507,76 +447,6 @@ export default function AdminPage() {
           <Group justify="flex-end" mt="md">
             <Button variant="default" onClick={close}>キャンセル</Button>
             <Button onClick={handleSaveCategory}>保存</Button>
-          </Group>
-        </Stack>
-      </Modal>
-
-      {/* ロゴ編集モーダル */}
-      <Modal 
-        opened={logoOpened} 
-        onClose={logoClose} 
-        title="ロゴ設定の変更"
-        centered
-      >
-        <Stack gap="md">
-          <Group gap="md" align="center">
-            <Image src={tempLogoUrl || getSmartIconUrl(editingLogoAccount?.name || "")} w={50} h={50} radius="md" />
-            <Box>
-              <Text fw={700}>{editingLogoAccount?.name}</Text>
-              <Text size="xs" c="dimmed">現在の表示プレビュー</Text>
-            </Box>
-          </Group>
-
-          <Divider label="画像のアップロード" labelPosition="center" />
-
-          <Dropzone
-            onDrop={(files) => {
-              const file = files[0];
-              const reader = new FileReader();
-              reader.onload = (event) => {
-                setTempLogoUrl(event.target?.result as string);
-              };
-              reader.readAsDataURL(file);
-            }}
-            onReject={() => notifications.show({ message: '無効なファイルです', color: 'red' })}
-            maxSize={3 * 1024 ** 2}
-            accept={IMAGE_MIME_TYPE}
-            radius="md"
-            useFsAccessApi={false}
-          >
-            <Group justify="center" gap="xl" mih={120} style={{ pointerEvents: 'none' }}>
-              <Dropzone.Accept>
-                <Upload size={40} color="var(--mantine-color-blue-6)" />
-              </Dropzone.Accept>
-              <Dropzone.Reject>
-                <X size={40} color="var(--mantine-color-red-6)" />
-              </Dropzone.Reject>
-              <Dropzone.Idle>
-                <ImageIcon size={40} color="var(--mantine-color-dimmed)" />
-              </Dropzone.Idle>
-
-              <div>
-                <Text size="sm" inline>画像をドラッグ＆ドロップ</Text>
-                <Text size="xs" c="dimmed" inline mt={7}>
-                  またはクリックしてファイルを選択 (3MBまで)
-                </Text>
-              </div>
-            </Group>
-          </Dropzone>
-
-          <Divider label="または URL を直接入力" labelPosition="center" />
-
-          <TextInput
-            label="ロゴURL"
-            placeholder="https://.../logo.png"
-            value={tempLogoUrl}
-            onChange={(e) => setTempLogoUrl(e.currentTarget.value)}
-            description="画像URL、または /logo.jpg のようなパスを入力。"
-          />
-
-          <Group justify="flex-end" mt="md">
-            <Button variant="default" onClick={logoClose}>キャンセル</Button>
-            <Button onClick={handleSaveLogo}>反映する</Button>
           </Group>
         </Stack>
       </Modal>

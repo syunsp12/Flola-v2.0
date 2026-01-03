@@ -2,11 +2,12 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { Card, Text, Group, SimpleGrid, ThemeIcon, Stack, RingProgress, Paper, Table, Badge, Grid, rem } from "@mantine/core"
+import { Card, Text, Group, SimpleGrid, ThemeIcon, Stack, RingProgress, Paper, Table, Badge, Grid, rem, Box, Image } from "@mantine/core"
 import { Wallet, TrendingUp, TrendingDown, CreditCard, ArrowRight } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { format } from 'date-fns'
 import { motion } from 'framer-motion'
+import { getSmartIconUrl, getCardBrandLogo } from '@/lib/utils/icon-helper'
 
 type DashboardData = {
   netWorth: number
@@ -66,7 +67,7 @@ export function DashboardView({ data }: { data: DashboardData }) {
   return (
     <motion.div variants={container} initial="hidden" animate="show">
       <Stack gap="lg" pb="xl">
-        {/* 1. 純資産サマリー */}
+        {/* ... (純資産サマリーなどは変更なし) ... */}
         <motion.div variants={item}>
           <Card 
             radius="md" 
@@ -196,34 +197,58 @@ export function DashboardView({ data }: { data: DashboardData }) {
             <Card radius="md" p={0} withBorder>
               <Table verticalSpacing="sm" striped highlightOnHover>
                 <Table.Tbody>
-                  {data.recentTransactions.map((t) => (
-                    <Table.Tr key={t.id}>
-                      <Table.Td width={40} pl="md">
-                        <ThemeIcon 
-                          variant="light" 
-                          color={t.type === 'income' ? 'teal' : 'red'} 
-                          radius="xl"
-                          size="md"
-                        >
-                          {t.type === 'income' ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-                        </ThemeIcon>
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="sm" fw={600} lineClamp={1}>{t.description}</Text>
-                        <Group gap={6}>
-                          <Text size="xs" c="dimmed">{format(new Date(t.date), 'MM/dd')}</Text>
-                          <Badge size="xs" variant="dot" color="gray">
-                            {(Array.isArray(t.categories) ? t.categories[0]?.name : t.categories?.name) || 'Uncategorized'}
-                          </Badge>
-                        </Group>
-                      </Table.Td>
-                      <Table.Td ta="right" pr="md">
-                         <Text size="sm" fw={700} c={t.type === 'income' ? 'teal' : undefined}>
-                           {t.type === 'expense' ? '-' : '+'}¥{t.amount.toLocaleString()}
-                         </Text>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
+                  {data.recentTransactions.map((t) => {
+                    const acc = t.accounts;
+                    const accountIcon = getSmartIconUrl(acc?.name || '', acc?.icon_url);
+                    const brandLogo = getCardBrandLogo(acc?.card_brand);
+                    
+                    return (
+                      <Table.Tr key={t.id}>
+                        <Table.Td width={60} pl="md">
+                          <Box pos="relative" w={28} h={28}>
+                            {accountIcon ? (
+                              <Image src={accountIcon} w={28} h={28} radius="xs" />
+                            ) : (
+                              <ThemeIcon variant="light" color={t.type === 'income' ? 'teal' : 'red'} radius="md" size={28}>
+                                {t.type === 'income' ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                              </ThemeIcon>
+                            )}
+                            {brandLogo && (
+                              <Box 
+                                pos="absolute" 
+                                bottom={-3} 
+                                right={-3} 
+                                bg="white" 
+                                p={1.5} 
+                                style={{ 
+                                  border: '1px solid var(--mantine-color-gray-2)',
+                                  borderRadius: rem(2),
+                                  display: 'flex', 
+                                  boxShadow: 'var(--mantine-shadow-xs)' 
+                                }}
+                              >
+                                <Image src={brandLogo} w={12} h={8} fit="contain" />
+                              </Box>
+                            )}
+                          </Box>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text size="sm" fw={600} lineClamp={1}>{t.description}</Text>
+                          <Group gap={6}>
+                            <Text size="xs" c="dimmed">{format(new Date(t.date), 'MM/dd')}</Text>
+                            <Badge size="xs" variant="dot" color="gray">
+                              {(Array.isArray(t.categories) ? t.categories[0]?.name : t.categories?.name) || 'Uncategorized'}
+                            </Badge>
+                          </Group>
+                        </Table.Td>
+                        <Table.Td ta="right" pr="md">
+                           <Text size="sm" fw={700} c={t.type === 'income' ? 'teal' : undefined}>
+                             {t.type === 'expense' ? '-' : '+'}¥{t.amount.toLocaleString()}
+                           </Text>
+                        </Table.Td>
+                      </Table.Tr>
+                    );
+                  })}
                   {data.recentTransactions.length === 0 && (
                      <Table.Tr>
                        <Table.Td colSpan={3} ta="center" c="dimmed" py="xl">

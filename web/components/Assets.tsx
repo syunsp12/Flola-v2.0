@@ -2,7 +2,8 @@
 import React, { useState } from 'react';
 import { Account, MonthlyBalance, SalarySlip } from '@/types/ui';
 import { FileText, Upload, Loader2, Landmark, History } from 'lucide-react';
-// import { analyzeSalarySlip } from '@/lib/gemini'; // APIエンドポイント削除のため無効化
+import { getSmartIconUrl, getCardBrandLogo } from '@/lib/utils/icon-helper';
+import { Box, Image, rem } from '@mantine/core';
 
 interface AssetsProps {
   accounts: Account[];
@@ -48,15 +49,47 @@ const Assets: React.FC<AssetsProps> = ({ accounts, monthlyBalances, salarySlips,
               口座別残高
             </h3>
             <div className="space-y-3">
-              {accounts.map(acc => (
-                <div key={acc.id} className="bg-white border rounded-2xl p-4 flex justify-between items-center shadow-sm">
-                  <div>
-                    <p className="text-xs font-bold text-slate-800">{acc.name}</p>
-                    <p className="text-[10px] text-slate-400">最終更新: 2025/12/28</p>
+              {accounts.map(acc => {
+                const accountIcon = getSmartIconUrl(acc.name, acc.icon_url);
+                const brandLogo = getCardBrandLogo(acc.card_brand);
+                
+                return (
+                  <div key={acc.id} className="bg-white border rounded-2xl p-4 flex justify-between items-center shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <Box pos="relative" w={28} h={28}>
+                        <Image 
+                          src={accountIcon} 
+                          w={28} h={28} 
+                          radius="xs" 
+                          fallbackSrc="https://placehold.co/28x28?text=?" 
+                        />
+                        {brandLogo && (
+                          <Box 
+                            pos="absolute" 
+                            bottom={-3} 
+                            right={-3} 
+                            bg="white" 
+                            p={1.5} 
+                            style={{ 
+                              border: '1px solid var(--mantine-color-gray-2)',
+                              borderRadius: rem(2),
+                              display: 'flex', 
+                              boxShadow: 'var(--mantine-shadow-xs)' 
+                            }}
+                          >
+                            <Image src={brandLogo} w={12} h={8} fit="contain" />
+                          </Box>
+                        )}
+                      </Box>
+                      <div>
+                        <p className="text-xs font-bold text-slate-800">{acc.name}</p>
+                        <p className="text-[10px] text-slate-400">最終更新: 2025/12/28</p>
+                      </div>
+                    </div>
+                    <p className="font-bold text-sm text-slate-700">¥{acc.balance.toLocaleString()}</p>
                   </div>
-                  <p className="font-bold text-sm text-slate-700">¥{acc.balance.toLocaleString()}</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
 

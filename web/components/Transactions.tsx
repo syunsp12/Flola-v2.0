@@ -1,8 +1,8 @@
-
 import React, { useState, useMemo } from 'react';
 import { Transaction, TransactionStatus, Category, Account } from '@/types/ui';
 import { Check, X, Sparkles, ChevronDown, Loader2, Info, Hash, Database } from 'lucide-react';
 import { classifyTransaction } from '@/lib/gemini';
+import { getSmartIconUrl, getCardBrandLogo } from '@/lib/utils/icon-helper';
 
 interface TransactionsProps {
   transactions: Transaction[];
@@ -119,27 +119,46 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, categories, a
           return (
             <div key={tx.id} className={`bg-white rounded-[24px] border transition-all duration-400 overflow-hidden flex flex-col ${isExpanded ? 'border-indigo-400 shadow-xl shadow-indigo-100/50 scale-[1.01] z-10' : hasAISuggestion ? 'border-indigo-100 bg-indigo-50/10' : 'border-slate-100 shadow-sm'}`}>
               <div onClick={() => setExpandedId(isExpanded ? null : tx.id)} className="p-4 flex justify-between items-center cursor-pointer transition-colors relative">
-                <div className="space-y-1.5 flex-1 pr-2">
-                  <div className="flex items-center gap-1.5 text-[8px] text-slate-400 font-black uppercase tracking-wider">
-                    {tx.date}
-                    <span className="w-0.5 h-0.5 bg-slate-200 rounded-full" />
-                    {fromAcc?.name}
-                  </div>
-                  
-                  <div className="space-y-0.5">
-                    <p className={`text-sm font-black leading-tight tracking-tight ${hasAISuggestion ? 'text-indigo-600' : 'text-slate-800'}`}>
-                      {suggestion?.normalized_merchant || tx.description}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <p className="text-base font-black text-slate-800 tracking-tighter">¥{tx.amount.toLocaleString()}</p>
-                    {currentCat && (
-                      <div className={`px-2 py-0.5 rounded-lg text-[7px] font-black uppercase flex items-center gap-1 border ${hasAISuggestion ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>
-                        {hasAISuggestion && <Sparkles className="w-2.5 h-2.5" />}
-                        {currentCat.name}
+                <div className="flex items-center gap-3 flex-1 pr-2">
+                  <div className="relative shrink-0">
+                    <img 
+                      src={getSmartIconUrl(fromAcc?.name || "", fromAcc?.icon_url) || ""} 
+                      className="w-10 h-10 rounded-xl object-contain bg-slate-50 border" 
+                      alt=""
+                      onError={(e) => (e.currentTarget.src = 'https://placehold.co/40x40?text=?')}
+                    />
+                    {fromAcc?.card_brand && (
+                      <div className="absolute -bottom-1 -right-1 bg-white rounded shadow-sm border border-slate-100 flex items-center justify-center p-0.5">
+                        <img 
+                          src={getCardBrandLogo(fromAcc.card_brand) || ""} 
+                          className="w-4 h-2.5 object-contain" 
+                          alt={fromAcc.card_brand} 
+                        />
                       </div>
                     )}
+                  </div>
+                  <div className="space-y-1 flex-1">
+                    <div className="flex items-center gap-1.5 text-[8px] text-slate-400 font-black uppercase tracking-wider">
+                      {tx.date}
+                      <span className="w-0.5 h-0.5 bg-slate-200 rounded-full" />
+                      {fromAcc?.name}
+                    </div>
+                    
+                    <div className="space-y-0.5">
+                      <p className={`text-sm font-black leading-tight tracking-tight ${hasAISuggestion ? 'text-indigo-600' : 'text-slate-800'}`}>
+                        {suggestion?.normalized_merchant || tx.description}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <p className="text-base font-black text-slate-800 tracking-tighter">¥{tx.amount.toLocaleString()}</p>
+                      {currentCat && (
+                        <div className={`px-2 py-0.5 rounded-lg text-[7px] font-black uppercase flex items-center gap-1 border ${hasAISuggestion ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>
+                          {hasAISuggestion && <Sparkles className="w-2.5 h-2.5" />}
+                          {currentCat.name}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
