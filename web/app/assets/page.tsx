@@ -1,7 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getAccountsWithBalance, updateAssetBalance, createAccount, updateAccount, deleteAccount } from '@/app/actions'
+import { 
+  getAccountsWithBalance, 
+  updateAssetBalance, 
+  createAccount, 
+  updateAccount, 
+  deleteAccount,
+  getAssetHistory,
+  getSalaryHistory
+} from '@/app/actions'
 import { 
   Card, 
   Group, 
@@ -32,6 +40,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { PageContainer } from '@/components/layout/page-container'
 import { getSmartIconUrl, getCardBrandLogo } from '@/lib/utils/icon-helper'
 import { LOGO_MASTER } from '@/lib/constants/logos'
+import Assets from '@/components/Assets'
 
 // 各口座カードのコンポーネント
 function AccountCard({ acc, getIcon, onEdit, onEditAccount, onDeleteAccount }: any) {
@@ -146,6 +155,8 @@ function AccountCard({ acc, getIcon, onEdit, onEditAccount, onDeleteAccount }: a
 
 export default function AssetsPage() {
   const [accounts, setAccounts] = useState<any[]>([])
+  const [assetHistory, setAssetHistory] = useState<any[]>([])
+  const [salaryHistory, setSalaryHistory] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   
   const [opened, { open, close }] = useDisclosure(false)
@@ -163,8 +174,14 @@ export default function AssetsPage() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const data = await getAccountsWithBalance()
-      setAccounts(data)
+      const [accData, historyData, salaryData] = await Promise.all([
+        getAccountsWithBalance(),
+        getAssetHistory(),
+        getSalaryHistory()
+      ])
+      setAccounts(accData)
+      setAssetHistory(historyData)
+      setSalaryHistory(salaryData)
     } catch (e) {
       notifications.show({ message: 'データの取得に失敗しました', color: 'red' })
     }

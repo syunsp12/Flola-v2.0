@@ -99,18 +99,26 @@ export async function getAccountsWithBalance() {
 
   if (!accounts) return []
 
-  const { data: balances } = await supabase
+  // 各口座の最新の残高レコードのみを取得するクエリ
+  // 注意: monthly_balancesが大量にある場合、SQL側で集計するのが理想的ですが、
+  // 現状の構成に合わせて確実な方法で取得します。
+  const { data: latestBalances, error } = await supabase
     .from('monthly_balances')
     .select('account_id, amount, record_date')
     .order('record_date', { ascending: false })
-    .limit(100)
+
+  if (error) {
+    console.error("Error fetching balances:", error)
+    return accounts.map(acc => ({ ...acc, current_amount: 0, last_updated: null }))
+  }
 
   const result = accounts.map(acc => {
-    const latestBalance = balances?.find(b => b.account_id === acc.id)
+    // この口座に紐づく最新（record_dateが最大）のレコードを探す
+    const latest = latestBalances?.find(b => b.account_id === acc.id)
     return {
       ...acc,
-      current_amount: latestBalance ? latestBalance.amount : 0,
-      last_updated: latestBalance ? latestBalance.record_date : null
+      current_amount: latest ? latest.amount : 0,
+      last_updated: latest ? latest.record_date : null
     }
   })
 
@@ -380,6 +388,68 @@ export async function triggerJob(jobId: string) {
   }
 
   return { success: true }
+}
+
+// --- 15. 分析用データの取得 ---
+
+/**
+ * 資産履歴の取得 (口座種別ごとの推移)
+ */
+export async function getAssetHistory() {
+  const supabase = await createClient()
+  
+  // 口座マスタを取得
+  const { data: accounts } = await supabase
+    .from('accounts')
+    .select('id, name, type, is_liability')
+
+  // 全ての履歴を取得
+  const { data: balances, error } = await supabase
+    .from('monthly_balances')
+    .select('*')
+    .order('record_date', { ascending: true })
+
+  if (error) return []
+
+  // 日付ごとに口座種別で集計
+  const historyMap = new Map<string, any>()
+  
+  balances.forEach(b => {
+    const date = b.record_date
+    const acc = accounts?.find(a => a.id === b.account_id)
+    if (!acc) return
+
+    if (!historyMap.has(date)) {
+      historyMap.set(date, { date, total: 0, bank: 0, pension: 0, securities: 0, wallet: 0, liability: 0 })
+    }
+    
+    const entry = historyMap.get(date)
+    const amount = b.amount
+
+    if (acc.is_liability) {
+      entry.liability += amount
+      entry.total -= amount
+    } else {
+      entry[acc.type] = (entry[acc.type] || 0) + amount
+      entry.total += amount
+    }
+  })
+
+  return Array.from(historyMap.values())
+}
+
+/**
+ * 給与履歴の取得
+ */
+export async function getSalaryHistory() {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('salary_slips')
+    .select('*')
+    .order('date', { ascending: true })
+
+  if (error) return []
+  return data
 }
 
 // --- AI予測 (Gemini) ---

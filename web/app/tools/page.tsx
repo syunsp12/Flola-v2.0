@@ -83,64 +83,36 @@ export default function ToolsPage() {
           {/* 2. 外部資産同期 */}
           <Box>
             <Text size="xs" fw={800} c="dimmed" tt="uppercase" px="xs" mb="xs">External Asset Sync</Text>
-            <Stack gap="sm">
-              {/* DC年金 */}
-              <Card padding="md" radius="md" withBorder>
-                <Group justify="space-between" wrap="nowrap">
-                  <Group gap="md">
-                    <ThemeIcon size={48} radius="md" variant="light" color="indigo">
-                      <Building2 size={24} />
-                    </ThemeIcon>
-                    <Stack gap={2}>
-                      <Group gap="xs">
-                        <Text fw={700} size="lg">DC年金 同期</Text>
-                        {getStatusBadge('scraper_dc')}
-                      </Group>
-                      <Text size="xs" c="dimmed">
-                        最終同期: {getJob('scraper_dc')?.last_run_at ? format(new Date(getJob('scraper_dc').last_run_at), 'MM/dd HH:mm') : '未実行'}
-                      </Text>
-                    </Stack>
-                  </Group>
-                  <Button 
-                    variant="light" 
-                    onClick={() => handleSync('scraper_dc')}
-                    loading={syncing['scraper_dc']}
-                    leftSection={<RefreshCw size={14} />}
-                  >
-                    同期
-                  </Button>
+            <Card padding="md" radius="md" withBorder>
+              <Group justify="space-between" wrap="nowrap">
+                <Group gap="md" style={{ flex: 1 }}>
+                  <ThemeIcon size={48} radius="md" variant="light" color="indigo">
+                    <RefreshCw size={24} />
+                  </ThemeIcon>
+                  <Stack gap={2}>
+                    <Group gap="xs">
+                      <Text fw={700} size="lg">全金融機関の残高同期</Text>
+                      {/* どちらか片方のステータスを表示 (共通ワークフローのため) */}
+                      {getStatusBadge('scraper_dc')}
+                    </Group>
+                    <Text size="sm" c="dimmed">DC年金、野村持株会のデータをまとめて取得します</Text>
+                    <Text size="10px" c="dimmed">
+                      最終同期: {getJob('scraper_dc')?.last_run_at ? format(new Date(getJob('scraper_dc').last_run_at), 'MM/dd HH:mm') : '未実行'}
+                    </Text>
+                  </Stack>
                 </Group>
-              </Card>
-
-              {/* 野村持株会 */}
-              <Card padding="md" radius="md" withBorder>
-                <Group justify="space-between" wrap="nowrap">
-                  <Group gap="md">
-                    <ThemeIcon size={48} radius="md" variant="light" color="teal">
-                      <TrendingUp size={24} />
-                    </ThemeIcon>
-                    <Stack gap={2}>
-                      <Group gap="xs">
-                        <Text fw={700} size="lg">野村持株会 同期</Text>
-                        {getStatusBadge('scraper_nomura')}
-                      </Group>
-                      <Text size="xs" c="dimmed">
-                        最終同期: {getJob('scraper_nomura')?.last_run_at ? format(new Date(getJob('scraper_nomura').last_run_at), 'MM/dd HH:mm') : '未実行'}
-                      </Text>
-                    </Stack>
-                  </Group>
-                  <Button 
-                    variant="light" 
-                    color="teal"
-                    onClick={() => handleSync('scraper_nomura')}
-                    loading={syncing['scraper_nomura']}
-                    leftSection={<RefreshCw size={14} />}
-                  >
-                    同期
-                  </Button>
-                </Group>
-              </Card>
-            </Stack>
+                <Button 
+                  variant="filled" 
+                  color="indigo"
+                  onClick={() => handleSync('scraper_dc')}
+                  loading={syncing['scraper_dc']}
+                  leftSection={<RefreshCw size={14} />}
+                  radius="md"
+                >
+                  今すぐ同期
+                </Button>
+              </Group>
+            </Card>
           </Box>
         </Stack>
       </PageContainer>

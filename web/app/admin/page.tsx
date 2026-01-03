@@ -10,7 +10,8 @@ import {
   deleteCategory,
   getAccountsWithBalance,
   updateAccount,
-  triggerJob
+  triggerJob,
+  getSalaryHistory
 } from '@/app/actions'
 import { 
   Card, 
@@ -34,17 +35,19 @@ import {
   Image,
   SegmentedControl,
   Select,
-  rem
+  rem,
+  UnstyledButton
 } from "@mantine/core"
 import { useDisclosure } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
 import { Dropzone, IMAGE_MIME_TYPE } from '@mantine/dropzone'
-import { Activity, FileText, RefreshCw, Server, AlertCircle, CheckCircle2, Clock, Tag, Plus, Pencil, Trash2, ArrowUpCircle, ArrowDownCircle, Search, Settings, Moon, Sun, Bell, LogOut, User, Shield, Image as ImageIcon, Upload, X } from 'lucide-react'
+import { Activity, FileText, RefreshCw, Server, AlertCircle, CheckCircle2, Clock, Tag, Plus, Pencil, Trash2, ArrowUpCircle, ArrowDownCircle, Search, Settings, Moon, Sun, Bell, LogOut, User, Shield, Image as ImageIcon, Upload, X, Building2, TrendingUp, Wrench } from 'lucide-react'
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageContainer } from '@/components/layout/page-container'
 import { getSmartIconUrl } from '@/lib/utils/icon-helper'
+import Link from 'next/link'
 
 // --- 型定義 ---
 type Category = {
@@ -75,6 +78,8 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<string | null>("categories")
   const [systemTab, setSystemTab] = useState("jobs")
   
+  const [syncing, setSyncing] = useState<Record<string, boolean>>({})
+
   const [opened, { open, close }] = useDisclosure(false)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
   
@@ -159,12 +164,29 @@ export default function AdminPage() {
     }
   }
 
+  const getJob = (jobsList: any[], jobId: string) => jobsList.find(j => j.job_id === jobId)
+
+  const getStatusBadge = (jobsList: any[], jobId: string) => {
+    const job = getJob(jobsList, jobId)
+    if (!job) return null
+    const colors: Record<string, string> = { 'success': 'green', 'failed': 'red', 'running': 'blue' }
+    return (
+      <Badge size="xs" variant="light" color={colors[job.last_status] || 'gray'}>
+        {job.last_status}
+      </Badge>
+    )
+  }
+
   const handleTriggerJob = async (jobId: string) => {
+    setSyncing(prev => ({ ...prev, [jobId]: true }))
     try {
       await triggerJob(jobId)
       notifications.show({ title: 'Success', message: 'Job triggered successfully', color: 'green' })
+      setTimeout(loadData, 5000)
     } catch (e: any) {
       notifications.show({ title: 'Error', message: e.message, color: 'red' })
+    } finally {
+      setSyncing(prev => ({ ...prev, [jobId]: false }))
     }
   }
 
@@ -190,6 +212,7 @@ export default function AdminPage() {
         tabs={
           <Tabs.List grow style={tabListStyle}>
             <Tabs.Tab value="categories" leftSection={<Tag size={14} />} style={tabStyle}>Categories</Tabs.Tab>
+            <Tabs.Tab value="tools" leftSection={<Wrench size={14} />} style={tabStyle}>Tools</Tabs.Tab>
             <Tabs.Tab value="settings" leftSection={<User size={14} />} style={tabStyle}>Settings</Tabs.Tab>
             <Tabs.Tab value="system" leftSection={<Activity size={14} />} style={tabStyle}>System</Tabs.Tab>
           </Tabs.List>
@@ -209,6 +232,101 @@ export default function AdminPage() {
             exit={{ opacity: 0, x: -10 }}
             transition={{ duration: 0.2 }}
           >
+            {/* --- カテゴリ管理タブ --- */}
+            <Tabs.Panel value="categories" pt="md">
+              <Button 
+                fullWidth 
+                mb="md"
+                leftSection={<Plus size={16} />}
+                onClick={() => handleOpenModal()}
+              >
+                新規カテゴリ追加
+              </Button>
+
+              <Stack gap="sm">
+                {categories.map((cat) => (
+                  <Card key={cat.id} padding="sm" radius="md" withBorder>
+                    <Group justify="space-between">
+                      <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
+                        <Group gap="xs">
+                          <Text fw={700} size="sm">{cat.name}</Text>
+                          <Badge size="sm" variant="light" color={cat.type === 'expense' ? "red" : "green"}>
+                            {cat.type === 'expense' ? '支出' : '収入'}
+                          </Badge>
+                        </Group>
+                        <Text size="xs" c="dimmed" lineClamp={1}>
+                          {cat.keywords?.join(", ")}
+                        </Text>
+                      </Stack>
+                      <Group gap={4}>
+                        <ActionIcon variant="subtle" color="gray" onClick={() => handleOpenModal(cat)}>
+                          <Pencil size={16} />
+                        </ActionIcon>
+                        <ActionIcon variant="subtle" color="red" onClick={() => handleDeleteCategory(cat.id)}>
+                          <Trash2 size={16} />
+                        </ActionIcon>
+                      </Group>
+                    </Group>
+                  </Card>
+                ))}
+              </Stack>
+            </Tabs.Panel>
+
+            {/* --- ツールタブ (旧Toolsの統合) --- */}
+            <Tabs.Panel value="tools" pt="md">
+              <Stack gap="xl">
+                <Box>
+                  <Text size="xs" fw={800} c="dimmed" tt="uppercase" px="xs" mb="xs">Income Management</Text>
+                  <Link href="/tools/salary" style={{ textDecoration: 'none' }}>
+                    <Card padding="md" radius="md" withBorder>
+                      <Group wrap="nowrap">
+                        <ThemeIcon size={48} radius="md" variant="light" color="blue">
+                          <FileText size={24} />
+                        </ThemeIcon>
+                        <Stack gap={2}>
+                          <Text fw={700} size="lg">給与明細分析</Text>
+                          <Text size="sm" c="dimmed">PDFをアップロードして収入項目を自動抽出</Text>
+                        </Stack>
+                      </Group>
+                    </Card>
+                  </Link>
+                </Box>
+
+                <Box>
+                  <Text size="xs" fw={800} c="dimmed" tt="uppercase" px="xs" mb="xs">External Asset Sync</Text>
+                  <Card padding="md" radius="md" withBorder>
+                    <Group justify="space-between" wrap="nowrap">
+                      <Group gap="md" style={{ flex: 1 }}>
+                        <ThemeIcon size={48} radius="md" variant="light" color="indigo">
+                          <RefreshCw size={24} />
+                        </ThemeIcon>
+                        <Stack gap={2}>
+                          <Group gap="xs">
+                            <Text fw={700} size="lg">全金融機関の残高同期</Text>
+                            {getStatusBadge(jobs, 'scraper_dc')}
+                          </Group>
+                          <Text size="sm" c="dimmed">DC年金、野村持株会のデータをまとめて取得します</Text>
+                          <Text size="10px" c="dimmed">
+                            最終同期: {getJob(jobs, 'scraper_dc')?.last_run_at ? format(new Date(getJob(jobs, 'scraper_dc').last_run_at), 'MM/dd HH:mm') : '未実行'}
+                          </Text>
+                        </Stack>
+                      </Group>
+                      <Button 
+                        variant="filled" 
+                        color="indigo"
+                        onClick={() => handleTriggerJob('scraper_dc')}
+                        loading={syncing['scraper_dc']}
+                        leftSection={<RefreshCw size={14} />}
+                        radius="md"
+                      >
+                        同期
+                      </Button>
+                    </Group>
+                  </Card>
+                </Box>
+              </Stack>
+            </Tabs.Panel>
+
             {/* --- 設定タブ --- */}
             <Tabs.Panel value="settings" pt="md">
               <Stack gap="xl">
@@ -282,45 +400,6 @@ export default function AdminPage() {
                   <Text size="10px" c="dimmed" fw={800} tt="uppercase" style={{ letterSpacing: '2px' }}>Flola v2.1.0-stable</Text>
                   <Text size="10px" c="dimmed">Powered by Gemini 1.5 Flash</Text>
                 </Stack>
-              </Stack>
-            </Tabs.Panel>
-
-            <Tabs.Panel value="categories" pt="md">
-              <Button 
-                fullWidth 
-                mb="md"
-                leftSection={<Plus size={16} />}
-                onClick={() => handleOpenModal()}
-              >
-                新規カテゴリ追加
-              </Button>
-
-              <Stack gap="sm">
-                {categories.map((cat) => (
-                  <Card key={cat.id} padding="sm" radius="md" withBorder>
-                    <Group justify="space-between">
-                      <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
-                        <Group gap="xs">
-                          <Text fw={700} size="sm">{cat.name}</Text>
-                          <Badge size="sm" variant="light" color={cat.type === 'expense' ? "red" : "green"}>
-                            {cat.type === 'expense' ? '支出' : '収入'}
-                          </Badge>
-                        </Group>
-                        <Text size="xs" c="dimmed" lineClamp={1}>
-                          {cat.keywords?.join(", ")}
-                        </Text>
-                      </Stack>
-                      <Group gap={4}>
-                        <ActionIcon variant="subtle" color="gray" onClick={() => handleOpenModal(cat)}>
-                          <Pencil size={16} />
-                        </ActionIcon>
-                        <ActionIcon variant="subtle" color="red" onClick={() => handleDeleteCategory(cat.id)}>
-                          <Trash2 size={16} />
-                        </ActionIcon>
-                      </Group>
-                    </Group>
-                  </Card>
-                ))}
               </Stack>
             </Tabs.Panel>
 

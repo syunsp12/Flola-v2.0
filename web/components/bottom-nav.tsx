@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { Home, Inbox, Landmark, Settings, Wrench } from 'lucide-react'
+import { Home, Inbox, Landmark, Settings, PieChart } from 'lucide-react'
 import { Paper, Group, Text, Stack, ThemeIcon, rem, Indicator, Box } from '@mantine/core'
 import { getPendingCount } from '@/app/actions'
 
@@ -30,7 +30,7 @@ export function BottomNav() {
     { href: '/inbox', label: 'Inbox', icon: Inbox, count: pendingCount },
     { href: '/assets', label: 'Assets', icon: Landmark },
     { href: '/', label: 'Home', icon: Home },
-    { href: '/tools', label: 'Tools', icon: Wrench },
+    { href: '/analyze', label: 'Analysis', icon: PieChart },
     { href: '/admin', label: 'Admin', icon: Settings },
   ]
 
