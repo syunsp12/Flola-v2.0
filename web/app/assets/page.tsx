@@ -8,7 +8,8 @@ import {
   updateAccount, 
   deleteAccount,
   getAssetHistory,
-  getSalaryHistory
+  getSalaryHistory,
+  getAssetGroups
 } from '@/app/actions'
 import { 
   Card, 
@@ -155,8 +156,7 @@ function AccountCard({ acc, getIcon, onEdit, onEditAccount, onDeleteAccount }: a
 
 export default function AssetsPage() {
   const [accounts, setAccounts] = useState<any[]>([])
-  const [assetHistory, setAssetHistory] = useState<any[]>([])
-  const [salaryHistory, setSalaryHistory] = useState<any[]>([])
+  const [assetGroups, setAssetGroups] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   
   const [opened, { open, close }] = useDisclosure(false)
@@ -174,16 +174,15 @@ export default function AssetsPage() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const [accData, historyData, salaryData] = await Promise.all([
+      const [accData, agData] = await Promise.all([
         getAccountsWithBalance(),
-        getAssetHistory(),
-        getSalaryHistory()
+        getAssetGroups()
       ])
       setAccounts(accData)
-      setAssetHistory(historyData)
-      setSalaryHistory(salaryData)
+      setAssetGroups(agData)
     } catch (e) {
-      notifications.show({ message: 'データの取得に失敗しました', color: 'red' })
+      console.error("Assets load error:", e)
+      notifications.show({ message: 'データの取得に失敗しました。ブラウザのコンソールを確認してください。', color: 'red' })
     }
     setLoading(false)
   }
@@ -346,13 +345,8 @@ export default function AssetsPage() {
             />
             <Select
               label="種類"
-              data={[
-                { value: 'bank', label: '銀行口座' },
-                { value: 'credit_card', label: 'クレジットカード' },
-                { value: 'wallet', label: '現金・財布' },
-                { value: 'securities', label: '証券' },
-                { value: 'point', label: 'ポイント' },
-              ]}
+              placeholder="選択してください"
+              data={assetGroups.map(ag => ({ value: ag.id, label: ag.name }))}
               value={accType}
               onChange={(val) => setAccType(val || 'bank')}
             />
@@ -421,21 +415,24 @@ export default function AssetsPage() {
               size="xs"
             />
 
-            <Select
-              label="カードブランド"
-              placeholder="選択してください"
-              data={[
-                { value: 'visa', label: 'VISA' },
-                { value: 'mastercard', label: 'Mastercard' },
-                { value: 'jcb', label: 'JCB' },
-                { value: 'amex', label: 'American Express' },
-                { value: 'diners', label: 'Diners Club' },
-              ]}
-              value={accCardBrand}
-              onChange={setAccCardBrand}
-              clearable
-              size="xs"
-            />
+            {/* クレジットカード時のみブランド選択を表示 */}
+            {accType === 'credit_card' && (
+              <Select
+                label="カードブランド"
+                placeholder="選択してください"
+                data={[
+                  { value: 'visa', label: 'VISA' },
+                  { value: 'mastercard', label: 'Mastercard' },
+                  { value: 'jcb', label: 'JCB' },
+                  { value: 'amex', label: 'American Express' },
+                  { value: 'diners', label: 'Diners Club' },
+                ]}
+                value={accCardBrand}
+                onChange={setAccCardBrand}
+                clearable
+                size="xs"
+              />
+            )}
 
             <Button fullWidth mt="md" onClick={handleSaveAccount}>
               {editingAccount ? '変更を保存' : '口座を作成'}

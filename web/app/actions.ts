@@ -393,49 +393,167 @@ export async function triggerJob(jobId: string) {
 // --- 15. 分析用データの取得 ---
 
 /**
- * 資産履歴の取得 (口座種別ごとの推移)
+ * 資産グループマスタの取得
+ */
+export async function getAssetGroups() {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('asset_groups')
+    .select('*')
+    .order('sort_order', { ascending: true })
+  
+  if (error) return []
+  return data
+}
+
+/**
+ * 資産グループの作成
+ */
+export async function createAssetGroup(data: { id: string, name: string, color: string, sort_order: number }) {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('asset_groups')
+    .insert(data)
+  
+  if (error) throw new Error(error.message)
+  revalidatePath('/admin')
+  revalidatePath('/analyze')
+  return { success: true }
+}
+
+/**
+ * 資産グループの更新
+ */
+export async function updateAssetGroup(id: string, updates: { name: string, color: string, sort_order: number }) {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('asset_groups')
+    .update(updates)
+    .eq('id', id)
+  
+  if (error) throw new Error(error.message)
+  revalidatePath('/admin')
+  revalidatePath('/analyze')
+  return { success: true }
+}
+
+/**
+ * 資産グループの削除
+ */
+export async function deleteAssetGroup(id: string) {
+  const supabase = await createClient()
+  
+  // 使用中の口座があるかチェック
+  const { count } = await supabase
+    .from('accounts')
+    .select('*', { count: 'exact', head: true })
+    .eq('type', id)
+
+  if (count && count > 0) {
+    throw new Error("このグループを使用している口座があるため削除できません")
+  }
+
+  const { error } = await supabase
+    .from('asset_groups')
+    .delete()
+    .eq('id', id)
+  
+  if (error) throw new Error(error.message)
+  revalidatePath('/admin')
+  revalidatePath('/analyze')
+  return { success: true }
+}
+
+/**
+ * 資産履歴の取得 (月次のスナップショット - マスタ連動版)
  */
 export async function getAssetHistory() {
   const supabase = await createClient()
   
-  // 口座マスタを取得
-  const { data: accounts } = await supabase
-    .from('accounts')
-    .select('id, name, type, is_liability')
+  // 1. マスタ取得
+  const [groups, { data: accounts }] = await Promise.all([
+    getAssetGroups(),
+    supabase.from('accounts').select('id, name, type, is_liability')
+  ])
 
-  // 全ての履歴を取得
+  if (!accounts) return []
+
+  // 2. 全ての履歴を取得
   const { data: balances, error } = await supabase
     .from('monthly_balances')
     .select('*')
     .order('record_date', { ascending: true })
 
-  if (error) return []
+  if (error || !balances) return []
 
-  // 日付ごとに口座種別で集計
-  const historyMap = new Map<string, any>()
+  // 3. 月リストの作成
+  const months = Array.from(new Set(balances.map(b => b.record_date.substring(0, 7)))).sort()
+  const latestBalances = new Map<string, number>()
   
-  balances.forEach(b => {
-    const date = b.record_date
-    const acc = accounts?.find(a => a.id === b.account_id)
-    if (!acc) return
+  const history = months.map(month => {
+    const balancesInMonth = balances.filter(b => b.record_date.startsWith(month))
+    balancesInMonth.forEach(b => {
+      latestBalances.set(b.account_id, b.amount)
+    })
 
-    if (!historyMap.has(date)) {
-      historyMap.set(date, { date, total: 0, bank: 0, pension: 0, securities: 0, wallet: 0, liability: 0 })
+    // 初期化
+    const entry: any = { 
+      date: `${month}-01`, 
+      total: 0, 
+      total_invested: 0, // 全体の投入額合計
+      liability: 0 
     }
+    groups.forEach((g: any) => { 
+      entry[g.id] = 0 
+      entry[`${g.id}_invested`] = 0 // グループごとの投入額
+    })
+
+    // 全期間のデータを一時保存するMapが必要なため、latestBalancesを拡張
+    // { accId: { amount, invested } }
+    const snapshotsInMonth = balances.filter(b => b.record_date.startsWith(month))
     
-    const entry = historyMap.get(date)
-    const amount = b.amount
+    // snapshotsInMonth の各レコードを currentSnapshots に反映
+    // (既に上位で定義されている latestBalances を利用)
+    // 注意: latestBalances は Map<string, { amount: number, invested: number }> にすべきですが
+    // 既存の Map<string, number> を使いつつ、invested 用の Map も追加します
+    if (!(global as any).latestInvested) (global as any).latestInvested = new Map<string, number>();
+    const latestInvested = (global as any).latestInvested;
 
-    if (acc.is_liability) {
-      entry.liability += amount
-      entry.total -= amount
-    } else {
-      entry[acc.type] = (entry[acc.type] || 0) + amount
-      entry.total += amount
-    }
+    balancesInMonth.forEach(b => {
+      latestBalances.set(b.account_id, b.amount)
+      if (b.invested_amount !== null) {
+        latestInvested.set(b.account_id, b.invested_amount)
+      }
+    })
+
+    // 集計
+    latestBalances.forEach((amount, accId) => {
+      const acc = accounts.find(a => a.id === accId)
+      if (!acc) return
+
+      const invested = latestInvested.get(accId) || 0
+
+      if (acc.is_liability) {
+        entry.liability += amount
+        entry.total -= amount
+      } else {
+        const typeKey = acc.type
+        if (entry.hasOwnProperty(typeKey)) {
+          entry[typeKey] += amount
+          entry[`${typeKey}_invested`] += invested
+        } else {
+          const fallback = groups[groups.length - 1]?.id || 'wallet'
+          entry[fallback] = (entry[fallback] || 0) + amount
+          entry[`${fallback}_invested`] = (entry[`${fallback}_invested`] || 0) + invested
+        }
+        entry.total += amount
+        entry.total_invested += invested
+      }
+    })
+    return entry
   })
 
-  return Array.from(historyMap.values())
+  return history
 }
 
 /**

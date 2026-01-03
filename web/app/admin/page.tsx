@@ -11,7 +11,11 @@ import {
   getAccountsWithBalance,
   updateAccount,
   triggerJob,
-  getSalaryHistory
+  getSalaryHistory,
+  getAssetGroups,
+  updateAssetGroup,
+  createAssetGroup,
+  deleteAssetGroup
 } from '@/app/actions'
 import { 
   Card, 
@@ -36,12 +40,14 @@ import {
   SegmentedControl,
   Select,
   rem,
-  UnstyledButton
+  UnstyledButton,
+  ColorInput,
+  NumberInput as MantineNumberInput
 } from "@mantine/core"
 import { useDisclosure } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
 import { Dropzone, IMAGE_MIME_TYPE } from '@mantine/dropzone'
-import { Activity, FileText, RefreshCw, Server, AlertCircle, CheckCircle2, Clock, Tag, Plus, Pencil, Trash2, ArrowUpCircle, ArrowDownCircle, Search, Settings, Moon, Sun, Bell, LogOut, User, Shield, Image as ImageIcon, Upload, X, Building2, TrendingUp, Wrench } from 'lucide-react'
+import { Activity, FileText, RefreshCw, Server, AlertCircle, CheckCircle2, Clock, Tag, Plus, Pencil, Trash2, ArrowUpCircle, ArrowDownCircle, Search, Settings, Moon, Sun, Bell, LogOut, User, Shield, Image as ImageIcon, Upload, X, Building2, TrendingUp, Wrench, Layers } from 'lucide-react'
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
 import { PageHeader } from '@/components/layout/page-header'
@@ -66,6 +72,13 @@ type Account = {
   card_brand: string | null
 }
 
+type AssetGroup = {
+  id: string
+  name: string
+  color: string
+  sort_order: number
+}
+
 export default function AdminPage() {
   const { colorScheme, toggleColorScheme } = useMantineColorScheme()
   const dark = colorScheme === 'dark'
@@ -74,15 +87,24 @@ export default function AdminPage() {
   const [logs, setLogs] = useState<any[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [accounts, setAccounts] = useState<Account[]>([])
+  const [assetGroups, setAssetGroups] = useState<AssetGroup[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<string | null>("categories")
   const [systemTab, setSystemTab] = useState("jobs")
+  const [categoryView, setCategoryView] = useState("transactions") // 'transactions' | 'assets'
   
   const [syncing, setSyncing] = useState<Record<string, boolean>>({})
 
   const [opened, { open, close }] = useDisclosure(false)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
   
+  const [assetGroupOpened, { open: agOpen, close: agClose }] = useDisclosure(false)
+  const [editingAG, setEditingAG] = useState<AssetGroup | null>(null)
+  const [agId, setAgId] = useState("")
+  const [agName, setAgName] = useState("")
+  const [agColor, setAgColor] = useState("#4E82EE")
+  const [agOrder, setAgOrder] = useState(0)
+
   const [catName, setCatName] = useState("")
   const [catType, setCatType] = useState<'income' | 'expense'>("expense")
   const [catKeywords, setCatKeywords] = useState("")
@@ -91,16 +113,18 @@ export default function AdminPage() {
 
   const loadData = async () => {
     setLoading(true)
-    const [jobsData, logsData, catsData, accountsData] = await Promise.all([
+    const [jobsData, logsData, catsData, accountsData, agData] = await Promise.all([
       getJobStatuses(),
       getSystemLogs(),
       getCategories(),
-      getAccountsWithBalance()
+      getAccountsWithBalance(),
+      getAssetGroups()
     ])
     setJobs(jobsData || [])
     setLogs(logsData || [])
     setCategories(catsData || [])
     setAccounts(accountsData || [])
+    setAssetGroups(agData || [])
     setLoading(false)
   }
 
@@ -148,6 +172,55 @@ export default function AdminPage() {
     if (!confirm("本当に削除しますか？使用中のカテゴリは削除できません。")) return
     try {
       await deleteCategory(id)
+      notifications.show({ message: '削除しました', color: 'gray' })
+      loadData()
+    } catch (e: any) {
+      notifications.show({ message: e.message, color: 'red' })
+    }
+  }
+
+  const handleOpenAGModal = (ag?: AssetGroup) => {
+    if (ag) {
+      setEditingAG(ag)
+      setAgId(ag.id)
+      setAgName(ag.name)
+      setAgColor(ag.color)
+      setAgOrder(ag.sort_order)
+    } else {
+      setEditingAG(null)
+      setAgId("")
+      setAgName("")
+      setAgColor("#4E82EE")
+      setAgOrder(assetGroups.length + 1)
+    }
+    agOpen()
+  }
+
+  const handleSaveAG = async () => {
+    if (!agId || !agName) {
+      notifications.show({ message: 'IDと表示名は必須です', color: 'red' })
+      return
+    }
+    try {
+      const data = { id: agId, name: agName, color: agColor, sort_order: agOrder }
+      if (editingAG) {
+        await updateAssetGroup(editingAG.id, data)
+        notifications.show({ message: '資産グループを更新しました', color: 'green' })
+      } else {
+        await createAssetGroup(data)
+        notifications.show({ message: '資産グループを作成しました', color: 'green' })
+      }
+      loadData()
+      agClose()
+    } catch (e: any) {
+      notifications.show({ message: e.message, color: 'red' })
+    }
+  }
+
+  const handleDeleteAG = async (id: string) => {
+    if (!confirm("この資産グループを削除しますか？")) return
+    try {
+      await deleteAssetGroup(id)
       notifications.show({ message: '削除しました', color: 'gray' })
       loadData()
     } catch (e: any) {
@@ -234,41 +307,74 @@ export default function AdminPage() {
           >
             {/* --- カテゴリ管理タブ --- */}
             <Tabs.Panel value="categories" pt="md">
-              <Button 
-                fullWidth 
-                mb="md"
-                leftSection={<Plus size={16} />}
-                onClick={() => handleOpenModal()}
-              >
-                新規カテゴリ追加
-              </Button>
+              <Stack gap="md">
+                <SegmentedControl
+                  value={categoryView}
+                  onChange={setCategoryView}
+                  data={[
+                    { label: '取引カテゴリ', value: 'transactions' },
+                    { label: '資産グループ', value: 'assets' },
+                  ]}
+                  fullWidth
+                  radius="md"
+                />
 
-              <Stack gap="sm">
-                {categories.map((cat) => (
-                  <Card key={cat.id} padding="sm" radius="md" withBorder>
-                    <Group justify="space-between">
-                      <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
-                        <Group gap="xs">
-                          <Text fw={700} size="sm">{cat.name}</Text>
-                          <Badge size="sm" variant="light" color={cat.type === 'expense' ? "red" : "green"}>
-                            {cat.type === 'expense' ? '支出' : '収入'}
-                          </Badge>
+                {categoryView === 'transactions' ? (
+                  <>
+                    <Button fullWidth leftSection={<Plus size={16} />} variant="light" onClick={() => handleOpenModal()}>
+                      新規カテゴリ追加
+                    </Button>
+                    <Stack gap="sm">
+                      {categories.map((cat) => (
+                        <Card key={cat.id} padding="sm" radius="md" withBorder>
+                          <Group justify="space-between">
+                            <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
+                              <Group gap="xs">
+                                <Text fw={700} size="sm">{cat.name}</Text>
+                                <Badge size="sm" variant="light" color={cat.type === 'expense' ? "red" : "green"}>
+                                  {cat.type === 'expense' ? '支出' : '収入'}
+                                </Badge>
+                              </Group>
+                              <Text size="xs" c="dimmed" lineClamp={1}>{cat.keywords?.join(", ")}</Text>
+                            </Stack>
+                            <Group gap={4}>
+                              <ActionIcon variant="subtle" color="gray" onClick={() => handleOpenModal(cat)}><Pencil size={16} /></ActionIcon>
+                              <ActionIcon variant="subtle" color="red" onClick={() => handleDeleteCategory(cat.id)}><Trash2 size={16} /></ActionIcon>
+                            </Group>
+                          </Group>
+                        </Card>
+                      ))}
+                    </Stack>
+                  </>
+                ) : (
+                  <Stack gap="sm">
+                    <Button fullWidth leftSection={<Plus size={16} />} variant="light" onClick={() => handleOpenAGModal()}>
+                      新規資産グループ追加
+                    </Button>
+                    <Text size="xs" c="dimmed" px="xs">資産種別の表示名や、グラフでの色を設定します。</Text>
+                    {assetGroups.map((ag) => (
+                      <Card key={ag.id} padding="sm" radius="md" withBorder shadow="xs">
+                        <Group justify="space-between">
+                          <Group gap="md">
+                            <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: ag.color }} />
+                            <Stack gap={0}>
+                              <Text fw={700} size="sm">{ag.name}</Text>
+                              <Text size="10px" c="dimmed" tt="uppercase">{ag.id}</Text>
+                            </Stack>
+                          </Group>
+                          <Group gap={4}>
+                            <ActionIcon variant="subtle" color="gray" onClick={() => handleOpenAGModal(ag)}>
+                              <Pencil size={14} />
+                            </ActionIcon>
+                            <ActionIcon variant="subtle" color="red" onClick={() => handleDeleteAG(ag.id)}>
+                              <Trash2 size={14} />
+                            </ActionIcon>
+                          </Group>
                         </Group>
-                        <Text size="xs" c="dimmed" lineClamp={1}>
-                          {cat.keywords?.join(", ")}
-                        </Text>
-                      </Stack>
-                      <Group gap={4}>
-                        <ActionIcon variant="subtle" color="gray" onClick={() => handleOpenModal(cat)}>
-                          <Pencil size={16} />
-                        </ActionIcon>
-                        <ActionIcon variant="subtle" color="red" onClick={() => handleDeleteCategory(cat.id)}>
-                          <Trash2 size={16} />
-                        </ActionIcon>
-                      </Group>
-                    </Group>
-                  </Card>
-                ))}
+                      </Card>
+                    ))}
+                  </Stack>
+                )}
               </Stack>
             </Tabs.Panel>
 
@@ -487,67 +593,88 @@ export default function AdminPage() {
             </Tabs.Panel>
           </motion.div>
         </AnimatePresence>
+
+        {/* カテゴリ編集モーダル */}
+        <Modal 
+          opened={opened} 
+          onClose={close} 
+          title={`カテゴリ${editingCategory ? '編集' : '追加'}`}
+          centered
+        >
+          <Stack gap="md">
+            <TextInput
+              label="カテゴリ名"
+              placeholder="例: 食費"
+              value={catName}
+              onChange={(e) => setCatName(e.currentTarget.value)}
+            />
+
+            <Radio.Group
+              label="収支タイプ"
+              value={catType}
+              onChange={(val) => setCatType(val as 'income' | 'expense')}
+            >
+              <Stack gap="xs" mt="xs">
+                <Radio 
+                  value="expense" 
+                  label={
+                    <Group gap="xs">
+                      <ArrowUpCircle size={16} color="var(--mantine-color-red-6)" />
+                      <Text size="sm" fw={500} c="red">支出 (Expense)</Text>
+                    </Group>
+                  }
+                  style={{ padding: '12px', border: '1px solid var(--mantine-color-gray-3)', borderRadius: '8px', cursor: 'pointer' }}
+                />
+                <Radio 
+                  value="income" 
+                  label={
+                    <Group gap="xs">
+                      <ArrowDownCircle size={16} color="var(--mantine-color-green-6)" />
+                      <Text size="sm" fw={500} c="green">収入 (Income)</Text>
+                    </Group>
+                  }
+                  style={{ padding: '12px', border: '1px solid var(--mantine-color-gray-3)', borderRadius: '8px', cursor: 'pointer' }}
+                />
+              </Stack>
+            </Radio.Group>
+
+            <Textarea
+              label="AI用キーワード"
+              description="カンマ(,)区切り。ここに入力した単語が含まれると、AIが優先的に提案します。"
+              placeholder="スーパー, コンビニ, マクドナルド"
+              minRows={3}
+              value={catKeywords}
+              onChange={(e) => setCatKeywords(e.currentTarget.value)}
+            />
+
+            <Group justify="flex-end" mt="md">
+              <Button variant="default" onClick={close}>キャンセル</Button>
+              <Button onClick={handleSaveCategory}>保存</Button>
+            </Group>
+          </Stack>
+        </Modal>
+
+        {/* 資産グループ編集モーダル */}
+        <Modal opened={assetGroupOpened} onClose={agClose} title={`資産グループの${editingAG ? '編集' : '追加'}`} centered>
+          <Stack gap="md">
+            <TextInput 
+              label="グループID" 
+              placeholder="例: crypto, gold" 
+              value={agId} 
+              onChange={(e) => setAgId(e.currentTarget.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+              disabled={!!editingAG}
+              description="英数字のみ。一度作成すると変更できません。"
+            />
+            <TextInput label="表示名" placeholder="例: 仮想通貨" value={agName} onChange={(e) => setAgName(e.currentTarget.value)} />
+            <ColorInput label="グラフカラー" value={agColor} onChange={setAgColor} />
+            <MantineNumberInput label="並び順" value={agOrder} onChange={(val) => setAgOrder(Number(val))} />
+            <Group justify="flex-end" mt="md">
+              <Button variant="default" onClick={agClose}>キャンセル</Button>
+              <Button onClick={handleSaveAG}>保存</Button>
+            </Group>
+          </Stack>
+        </Modal>
       </PageContainer>
-
-      {/* カテゴリ編集モーダル */}
-      <Modal 
-        opened={opened} 
-        onClose={close} 
-        title={`カテゴリ${editingCategory ? '編集' : '追加'}`}
-        centered
-      >
-        <Stack gap="md">
-          <TextInput
-            label="カテゴリ名"
-            placeholder="例: 食費"
-            value={catName}
-            onChange={(e) => setCatName(e.currentTarget.value)}
-          />
-
-          <Radio.Group
-            label="収支タイプ"
-            value={catType}
-            onChange={(val) => setCatType(val as 'income' | 'expense')}
-          >
-            <Stack gap="xs" mt="xs">
-              <Radio 
-                value="expense" 
-                label={
-                  <Group gap="xs">
-                    <ArrowUpCircle size={16} color="var(--mantine-color-red-6)" />
-                    <Text size="sm" fw={500} c="red">支出 (Expense)</Text>
-                  </Group>
-                }
-                style={{ padding: '12px', border: '1px solid var(--mantine-color-gray-3)', borderRadius: '8px', cursor: 'pointer' }}
-              />
-              <Radio 
-                value="income" 
-                label={
-                  <Group gap="xs">
-                    <ArrowDownCircle size={16} color="var(--mantine-color-green-6)" />
-                    <Text size="sm" fw={500} c="green">収入 (Income)</Text>
-                  </Group>
-                }
-                style={{ padding: '12px', border: '1px solid var(--mantine-color-gray-3)', borderRadius: '8px', cursor: 'pointer' }}
-              />
-            </Stack>
-          </Radio.Group>
-
-          <Textarea
-            label="AI用キーワード"
-            description="カンマ(,)区切り。ここに入力した単語が含まれると、AIが優先的に提案します。"
-            placeholder="スーパー, コンビニ, マクドナルド"
-            minRows={3}
-            value={catKeywords}
-            onChange={(e) => setCatKeywords(e.currentTarget.value)}
-          />
-
-          <Group justify="flex-end" mt="md">
-            <Button variant="default" onClick={close}>キャンセル</Button>
-            <Button onClick={handleSaveCategory}>保存</Button>
-          </Group>
-        </Stack>
-      </Modal>
     </Tabs>
   )
 }
