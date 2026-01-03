@@ -116,7 +116,7 @@ const Assets: React.FC<AssetsProps> = ({ accounts, monthlyBalances, salarySlips,
               <div className="space-y-3">
                 {accounts.map(acc => {
                   const accountIcon = getSmartIconUrl(acc.name, acc.icon_url);
-                  const brandLogo = getCardBrandLogo(acc.card_brand);
+                  const brandLogo = getCardBrandLogo(acc.card_brand || null);
                   
                   return (
                     <div key={acc.id} className="bg-white border rounded-2xl p-4 flex justify-between items-center shadow-sm">
