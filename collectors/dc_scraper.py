@@ -102,23 +102,60 @@ async def run():
                 pass
 
             # 3. データ抽出
-            raw_shisan = await page.locator(ID_SHISAN).first.inner_text() if await page.locator(ID_SHISAN).count() > 0 else "0"
+            # 評価額と運用金額が表示されるまで待機
+            await page.wait_for_selector("#txtShisanHyoka", timeout=30000)
+            
+            # 評価額の取得
+            raw_shisan = await page.locator("#txtShisanHyoka").first.inner_text()
             market_value = to_number(raw_shisan)
             
-            date_el = page.locator(".forPcBlock #txtZikaKijunbi").first
-            record_date = parse_date_text(await date_el.inner_text()) if await date_el.count() > 0 else datetime.date.today().isoformat()
+            # 運用金額の取得 (ID指定 + テキスト検索のハイブリッド)
+            invested_value = None
+            try:
+                # まずIDで試行
+                el = page.locator("#txtUnyouKingaku")
+                if await el.count() > 0:
+                    invested_value = to_number(await el.first.inner_text())
+                
+                # IDで見つからない、または0の場合はテキストから近傍を探索
+                if not invested_value:
+                    # 「運用金額」という文字を含む要素の「次の要素」を取得
+                    invested_value = to_number(await page.evaluate('''() => {
+                        const label = Array.from(document.querySelectorAll('span, p, th')).find(el => el.innerText.includes('運用金額'));
+                        if (!label) return '';
+                        // 親のdiv(financialStatus_box)内にあるnumberクラスの要素を探す
+                        const box = label.closest('.financialStatus_box');
+                        return box ? box.querySelector('.number').innerText : '';
+                    }'''))
+            except Exception as e:
+                await log_system("warning", f"Could not extract '運用金額': {str(e)}")
+
+            # 日付の取得 (HTML構造に合わせて調整)
+            date_text = ""
+            date_el = page.locator("#txtZikaKijunbi")
+            if await date_el.count() > 0:
+                date_text = await date_el.first.inner_text()
+            
+            record_date = parse_date_text(date_text) if date_text else datetime.date.today().isoformat()
 
             await browser.close()
 
             if market_value > 0:
                 # 4. 保存
-                supabase.table("monthly_balances").upsert({
+                data = {
                     "record_date": record_date,
                     "account_id": account_id,
-                    "amount": market_value
-                }, on_conflict="record_date, account_id").execute()
+                    "amount": market_value,
+                    "invested_amount": invested_value
+                }
+                await log_system("info", f"💾 Attempting to upsert balance: {data} (Search label: '運用金額')")
                 
-                msg = f"✅ Saved: {market_value:,} JPY"
+                res = supabase.table("monthly_balances").upsert(
+                    data, 
+                    on_conflict="record_date, account_id"
+                ).execute()
+                
+                msg = f"✅ Saved to DB: {market_value:,} JPY (Date: {record_date}, AccID: {account_id})"
                 await log_system("info", msg)
                 await update_job_status("success", msg)
             else:

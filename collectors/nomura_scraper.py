@@ -105,23 +105,44 @@ async def run():
             record_date = parse_japanese_date(await raw_date_el.inner_text()) if await raw_date_el.count() > 0 else datetime.date.today().isoformat()
             
             market_value = 0
+            invested_value = None
             pc_scope = page.locator(".hidden-sp").first
             if await pc_scope.count() > 0:
+                # 評価額の取得
                 scores = pc_scope.locator(".m_home_mydate_result_score")
                 if await scores.count() >= 1:
                     market_value = clean_number(await scores.nth(0).inner_text())
+                
+                # 投入額（ユーザー指定: "入金累計" を検索）
+                try:
+                    # 実際の構造: <th class="e_tbl_ttl"><div class="s_tbl_ttl">入金累計</div></th>
+                    # XPathを使って、「入金累計」というテキストを含むthを探し、その隣のtdを取得
+                    invested_value = clean_number(await page.evaluate('''() => {
+                        const ths = Array.from(document.querySelectorAll('th'));
+                        const targetTh = ths.find(th => th.innerText.includes('入金累計'));
+                        if (!targetTh) return '';
+                        const td = targetTh.nextElementSibling;
+                        return td ? td.innerText : '';
+                    }'''))
+                except Exception as e:
+                    await log_system("warning", f"Could not extract '入金累計': {str(e)}")
 
             await browser.close()
 
             if market_value > 0:
                 # 4. 保存 (monthly_balances)
-                supabase.table("monthly_balances").upsert({
+                data = {
                     "record_date": record_date,
                     "account_id": account_id,
-                    "amount": market_value
-                }, on_conflict="record_date, account_id").execute()
+                    "amount": market_value,
+                    "invested_amount": invested_value
+                }
+                supabase.table("monthly_balances").upsert(
+                    data, 
+                    on_conflict="record_date, account_id"
+                ).execute()
                 
-                msg = f"✅ Saved: {market_value:,} JPY"
+                msg = f"✅ Saved to DB: {market_value:,} JPY (Search label: '入金累計', Value: {invested_value})"
                 await log_system("info", msg)
                 await update_job_status("success", msg)
             else:
