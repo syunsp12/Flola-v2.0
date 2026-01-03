@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Account, SalarySlip } from '@/types/ui';
 import { FileText, Landmark, TrendingUp, PieChart, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { getSmartIconUrl, getCardBrandLogo } from '@/lib/utils/icon-helper';
-import { Box, Image, rem, Stack, Text, Group, Card, Paper, Badge, SimpleGrid, UnstyledButton } from '@mantine/core';
+import { Box, Image, rem, Stack, Text, Group, Card, Paper, Badge, SimpleGrid, UnstyledButton, Grid } from '@mantine/core';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   BarChart, Bar
