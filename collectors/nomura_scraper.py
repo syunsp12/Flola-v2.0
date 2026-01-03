@@ -74,10 +74,14 @@ async def run():
         async with async_playwright() as p:
             # 本番は Headless モード
             browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context(user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+            # 画面サイズを指定してPC版を強制する
+            context = await browser.new_context(
+                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                viewport={'width': 1280, 'height': 1000}
+            )
             page = await context.new_page()
 
-            # 1. ログイン
+            # ... (ログイン処理はそのまま) ...
             await page.goto("https://www.e-plan.nomura.co.jp/login/index.html", timeout=60000)
             if await page.locator("#m_login_tab_header_id1").count() > 0:
                 await page.click("#m_login_tab_header_id1")
@@ -94,11 +98,9 @@ async def run():
             detail_link = page.locator('a[href*="WEAW1101.jsp"]').first
             if await detail_link.count() > 0:
                 await detail_link.click()
-                await page.wait_for_load_state("domcontentloaded")
-                try:
-                    await page.wait_for_selector("table.hidden-sp", timeout=20000)
-                except:
-                    pass
+                await page.wait_for_load_state("networkidle")
+                # コンテンツの読み込みを待機
+                await page.wait_for_timeout(5000) 
 
             # 3. データ抽出
             raw_date_el = page.locator(".e_zandaka_date").first
@@ -106,26 +108,25 @@ async def run():
             
             market_value = 0
             invested_value = None
-            pc_scope = page.locator(".hidden-sp").first
-            if await pc_scope.count() > 0:
-                # 評価額の取得
-                scores = pc_scope.locator(".m_home_mydate_result_score")
-                if await scores.count() >= 1:
-                    market_value = clean_number(await scores.nth(0).inner_text())
-                
-                # 投入額（ユーザー指定: "入金累計" を検索）
-                try:
-                    # 実際の構造: <th class="e_tbl_ttl"><div class="s_tbl_ttl">入金累計</div></th>
-                    # XPathを使って、「入金累計」というテキストを含むthを探し、その隣のtdを取得
-                    invested_value = clean_number(await page.evaluate('''() => {
-                        const ths = Array.from(document.querySelectorAll('th'));
-                        const targetTh = ths.find(th => th.innerText.includes('入金累計'));
-                        if (!targetTh) return '';
-                        const td = targetTh.nextElementSibling;
-                        return td ? td.innerText : '';
-                    }'''))
-                except Exception as e:
-                    await log_system("warning", f"Could not extract '入金累計': {str(e)}")
+
+            # 評価額の取得 (クラス名でページ全体から探す)
+            score_el = page.locator(".m_home_mydate_result_score").first
+            if await score_el.count() > 0:
+                market_value = clean_number(await score_el.inner_text())
+                await log_system("info", f"🔎 Found market value via class: {market_value}")
+            
+            # 投入額（入金累計）の取得
+            try:
+                invested_value = clean_number(await page.evaluate('''() => {
+                    const ths = Array.from(document.querySelectorAll('th'));
+                    const targetTh = ths.find(th => th.innerText.includes('入金累計'));
+                    if (!targetTh) return '';
+                    const td = targetTh.nextElementSibling;
+                    return td ? td.innerText : '';
+                }'''))
+                await log_system("info", f"🔎 Found invested value via text: {invested_value}")
+            except Exception as e:
+                await log_system("warning", f"Could not extract '入金累計': {str(e)}")
 
             await browser.close()
 
@@ -142,10 +143,12 @@ async def run():
                     on_conflict="record_date, account_id"
                 ).execute()
                 
-                msg = f"✅ Saved to DB: {market_value:,} JPY (Search label: '入金累計', Value: {invested_value})"
+                msg = f"✅ Saved to DB: {market_value:,} JPY (Invested: {invested_value})"
                 await log_system("info", msg)
                 await update_job_status("success", msg)
             else:
+                # 失敗時のデバッグ用にページの状態を記録
+                await log_system("error", "Market value is 0. Current URL: " + page.url)
                 raise Exception("Market value is 0.")
 
     except Exception as e:
