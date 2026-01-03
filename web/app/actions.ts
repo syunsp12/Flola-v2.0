@@ -224,6 +224,7 @@ export async function createTransaction(data: {
   return { success: true }
 }
 
+
 // --- 11. AIカテゴリ一括適用 ---
 export async function applyAiCategories(targets: { id: string, description: string | null }[]) {
   const supabase = await createClient()
