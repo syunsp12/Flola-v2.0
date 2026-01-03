@@ -294,6 +294,9 @@ export async function deleteAccount(id: string) {
 // --- 13. 過去履歴取得リクエスト ---
 export async function requestHistoryFetch(startDate: string, endDate: string) {
   const supabase = await createClient()
+
+  // デバッグ用：ユーザー情報の確認
+  const { data: { user } } = await supabase.auth.getUser()
   
   const { error } = await supabase
     .from('history_fetch_requests')
@@ -303,7 +306,10 @@ export async function requestHistoryFetch(startDate: string, endDate: string) {
       status: 'pending'
     })
 
-  if (error) throw new Error(error.message)
+  if (error) {
+    console.error('History fetch error:', error, 'User:', user?.id)
+    throw new Error(`${error.message} (User: ${user?.id ?? 'anon'})`)
+  }
   revalidatePath('/inbox')
   return { success: true }
 }
