@@ -47,7 +47,7 @@ export function BottomNav() {
       left={0} 
       right={0} 
       px="md"
-      style={{ zIndex: 100 }}
+      style={{ zIndex: 100, pointerEvents: 'none' }}
     >
       <Paper 
         shadow="xl" 
@@ -60,6 +60,7 @@ export function BottomNav() {
           backgroundColor: 'rgba(255, 255, 255, 0.9)',
           backdropFilter: 'blur(12px)',
           border: '1px solid rgba(255, 255, 255, 0.3)',
+          pointerEvents: 'auto'
         }}
       >
         <Group gap={0} justify="space-around" wrap="nowrap" align="center">

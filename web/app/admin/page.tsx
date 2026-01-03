@@ -113,18 +113,23 @@ export default function AdminPage() {
 
   const loadData = async () => {
     setLoading(true)
-    const [jobsData, logsData, catsData, accountsData, agData] = await Promise.all([
-      getJobStatuses(),
-      getSystemLogs(),
-      getCategories(),
-      getAccountsWithBalance(),
-      getAssetGroups()
-    ])
-    setJobs(jobsData || [])
-    setLogs(logsData || [])
-    setCategories(catsData || [])
-    setAccounts(accountsData || [])
-    setAssetGroups(agData || [])
+    try {
+      const [jobsData, logsData, catsData, accountsData, agData] = await Promise.all([
+        getJobStatuses(),
+        getSystemLogs(),
+        getCategories(),
+        getAccountsWithBalance(),
+        getAssetGroups()
+      ])
+      setJobs(jobsData || [])
+      setLogs(logsData || [])
+      setCategories(catsData || [])
+      setAccounts(accountsData || [])
+      setAssetGroups(agData || [])
+    } catch (e) {
+      console.error("Admin load error:", e)
+      notifications.show({ title: 'Error', message: 'データの取得に失敗しました', color: 'red' })
+    }
     setLoading(false)
   }
 
@@ -191,7 +196,7 @@ export default function AdminPage() {
       setAgId("")
       setAgName("")
       setAgColor("#4E82EE")
-      setAgOrder(assetGroups.length + 1)
+      setAgOrder(assetGroups.length > 0 ? Math.max(...assetGroups.map(g => g.sort_order)) + 1 : 1)
     }
     agOpen()
   }
@@ -201,19 +206,24 @@ export default function AdminPage() {
       notifications.show({ message: 'IDと表示名は必須です', color: 'red' })
       return
     }
+    setLoading(true)
     try {
       const data = { id: agId, name: agName, color: agColor, sort_order: agOrder }
       if (editingAG) {
-        await updateAssetGroup(editingAG.id, data)
+        // 既存のID (editingAG.id) をキーにして更新を実行
+        await updateAssetGroup(editingAG.id, { name: agName, color: agColor, sort_order: agOrder })
         notifications.show({ message: '資産グループを更新しました', color: 'green' })
       } else {
         await createAssetGroup(data)
         notifications.show({ message: '資産グループを作成しました', color: 'green' })
       }
-      loadData()
+      await loadData() // データを最新に更新
       agClose()
     } catch (e: any) {
-      notifications.show({ message: e.message, color: 'red' })
+      console.error("Asset Group save error:", e)
+      notifications.show({ message: e.message || '保存に失敗しました', color: 'red' })
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -320,13 +330,15 @@ export default function AdminPage() {
                 />
 
                 {categoryView === 'transactions' ? (
-                  <>
+                  <Stack gap="sm">
                     <Button fullWidth leftSection={<Plus size={16} />} variant="light" onClick={() => handleOpenModal()}>
                       新規カテゴリ追加
                     </Button>
-                    <Stack gap="sm">
-                      {categories.map((cat) => (
-                        <Card key={cat.id} padding="sm" radius="md" withBorder>
+                    {categories.length === 0 ? (
+                      <Text c="dimmed" ta="center" py="xl">カテゴリが登録されていません</Text>
+                    ) : (
+                      categories.map((cat) => (
+                        <Card key={cat.id} padding="sm" radius="md" withBorder shadow="xs">
                           <Group justify="space-between">
                             <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
                               <Group gap="xs">
@@ -343,36 +355,40 @@ export default function AdminPage() {
                             </Group>
                           </Group>
                         </Card>
-                      ))}
-                    </Stack>
-                  </>
+                      ))
+                    )}
+                  </Stack>
                 ) : (
                   <Stack gap="sm">
                     <Button fullWidth leftSection={<Plus size={16} />} variant="light" onClick={() => handleOpenAGModal()}>
                       新規資産グループ追加
                     </Button>
                     <Text size="xs" c="dimmed" px="xs">資産種別の表示名や、グラフでの色を設定します。</Text>
-                    {assetGroups.map((ag) => (
-                      <Card key={ag.id} padding="sm" radius="md" withBorder shadow="xs">
-                        <Group justify="space-between">
-                          <Group gap="md">
-                            <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: ag.color }} />
-                            <Stack gap={0}>
-                              <Text fw={700} size="sm">{ag.name}</Text>
-                              <Text size="10px" c="dimmed" tt="uppercase">{ag.id}</Text>
-                            </Stack>
+                    {assetGroups.length === 0 ? (
+                      <Text c="dimmed" ta="center" py="xl">資産グループが登録されていません</Text>
+                    ) : (
+                      assetGroups.map((ag) => (
+                        <Card key={ag.id} padding="sm" radius="md" withBorder shadow="xs">
+                          <Group justify="space-between">
+                            <Group gap="md">
+                              <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: ag.color }} />
+                              <Stack gap={0}>
+                                <Text fw={700} size="sm">{ag.name}</Text>
+                                <Text size="10px" c="dimmed" tt="uppercase">{ag.id}</Text>
+                              </Stack>
+                            </Group>
+                            <Group gap={4}>
+                              <ActionIcon variant="subtle" color="gray" onClick={() => handleOpenAGModal(ag)}>
+                                <Pencil size={14} />
+                              </ActionIcon>
+                              <ActionIcon variant="subtle" color="red" onClick={() => handleDeleteAG(ag.id)}>
+                                <Trash2 size={14} />
+                              </ActionIcon>
+                            </Group>
                           </Group>
-                          <Group gap={4}>
-                            <ActionIcon variant="subtle" color="gray" onClick={() => handleOpenAGModal(ag)}>
-                              <Pencil size={14} />
-                            </ActionIcon>
-                            <ActionIcon variant="subtle" color="red" onClick={() => handleDeleteAG(ag.id)}>
-                              <Trash2 size={14} />
-                            </ActionIcon>
-                          </Group>
-                        </Group>
-                      </Card>
-                    ))}
+                        </Card>
+                      ))
+                    )}
                   </Stack>
                 )}
               </Stack>

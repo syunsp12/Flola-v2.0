@@ -93,15 +93,16 @@ export async function getAccountsWithBalance() {
   
   const { data: accounts } = await supabase
     .from('accounts')
-    .select('*')
+    .select(`
+      *,
+      asset_groups (id, name, color)
+    `)
     .order('type')
     .order('id')
 
   if (!accounts) return []
 
   // 各口座の最新の残高レコードのみを取得するクエリ
-  // 注意: monthly_balancesが大量にある場合、SQL側で集計するのが理想的ですが、
-  // 現状の構成に合わせて確実な方法で取得します。
   const { data: latestBalances, error } = await supabase
     .from('monthly_balances')
     .select('account_id, amount, record_date')
@@ -113,7 +114,6 @@ export async function getAccountsWithBalance() {
   }
 
   const result = accounts.map(acc => {
-    // この口座に紐づく最新（record_dateが最大）のレコードを探す
     const latest = latestBalances?.find(b => b.account_id === acc.id)
     return {
       ...acc,
@@ -426,14 +426,25 @@ export async function createAssetGroup(data: { id: string, name: string, color: 
  */
 export async function updateAssetGroup(id: string, updates: { name: string, color: string, sort_order: number }) {
   const supabase = await createClient()
+  
+  // IDは更新せず、表示上の属性のみを更新する
   const { error } = await supabase
     .from('asset_groups')
-    .update(updates)
+    .update({
+      name: updates.name,
+      color: updates.color,
+      sort_order: updates.sort_order
+    })
     .eq('id', id)
   
-  if (error) throw new Error(error.message)
+  if (error) {
+    console.error("Asset Group update error:", error)
+    throw new Error(error.message)
+  }
+  
   revalidatePath('/admin')
   revalidatePath('/analyze')
+  revalidatePath('/assets')
   return { success: true }
 }
 
@@ -465,109 +476,410 @@ export async function deleteAssetGroup(id: string) {
 }
 
 /**
+
  * 資産履歴の取得 (月次のスナップショット - マスタ連動版)
+
  */
+
 export async function getAssetHistory() {
+
   const supabase = await createClient()
+
   
-  // 1. マスタ取得
-  const [groups, { data: accounts }] = await Promise.all([
+
+  // 1. マスタと口座情報を取得
+
+  const [groups, accountsResult] = await Promise.all([
+
     getAssetGroups(),
+
     supabase.from('accounts').select('id, name, type, is_liability')
+
   ])
 
-  if (!accounts) return []
+
+
+  const accounts = accountsResult.data || []
+
+  if (accounts.length === 0) return []
+
+
 
   // 2. 全ての履歴を取得
+
   const { data: balances, error } = await supabase
+
     .from('monthly_balances')
+
     .select('*')
+
     .order('record_date', { ascending: true })
 
-  if (error || !balances) return []
+
+
+  if (error || !balances || balances.length === 0) return []
+
+
 
   // 3. 月リストの作成
+
   const months = Array.from(new Set(balances.map(b => b.record_date.substring(0, 7)))).sort()
-  const latestBalances = new Map<string, number>()
+
   
+
+  // 各口座の「最新状態」を保持するMap
+
+  const latestBalances = new Map<string, number>()
+
+  const latestInvested = new Map<string, number>()
+
+  
+
   const history = months.map(month => {
+
+    // その月の更新データを反映
+
     const balancesInMonth = balances.filter(b => b.record_date.startsWith(month))
-    balancesInMonth.forEach(b => {
-      latestBalances.set(b.account_id, b.amount)
-    })
-
-    // 初期化
-    const entry: any = { 
-      date: `${month}-01`, 
-      total: 0, 
-      total_invested: 0, // 全体の投入額合計
-      liability: 0 
-    }
-    groups.forEach((g: any) => { 
-      entry[g.id] = 0 
-      entry[`${g.id}_invested`] = 0 // グループごとの投入額
-    })
-
-    // 全期間のデータを一時保存するMapが必要なため、latestBalancesを拡張
-    // { accId: { amount, invested } }
-    const snapshotsInMonth = balances.filter(b => b.record_date.startsWith(month))
-    
-    // snapshotsInMonth の各レコードを currentSnapshots に反映
-    // (既に上位で定義されている latestBalances を利用)
-    // 注意: latestBalances は Map<string, { amount: number, invested: number }> にすべきですが
-    // 既存の Map<string, number> を使いつつ、invested 用の Map も追加します
-    if (!(global as any).latestInvested) (global as any).latestInvested = new Map<string, number>();
-    const latestInvested = (global as any).latestInvested;
 
     balancesInMonth.forEach(b => {
-      latestBalances.set(b.account_id, b.amount)
+
+      latestBalances.set(b.account_id, Number(b.amount) || 0)
+
       if (b.invested_amount !== null) {
-        latestInvested.set(b.account_id, b.invested_amount)
+
+        latestInvested.set(b.account_id, Number(b.invested_amount) || 0)
+
       }
+
     })
 
-    // 集計
-    latestBalances.forEach((amount, accId) => {
-      const acc = accounts.find(a => a.id === accId)
-      if (!acc) return
 
-      const invested = latestInvested.get(accId) || 0
 
-      if (acc.is_liability) {
-        entry.liability += amount
-        entry.total -= amount
-      } else {
-        const typeKey = acc.type
-        if (entry.hasOwnProperty(typeKey)) {
-          entry[typeKey] += amount
-          entry[`${typeKey}_invested`] += invested
-        } else {
-          const fallback = groups[groups.length - 1]?.id || 'wallet'
-          entry[fallback] = (entry[fallback] || 0) + amount
-          entry[`${fallback}_invested`] = (entry[`${fallback}_invested`] || 0) + invested
-        }
-        entry.total += amount
-        entry.total_invested += invested
-      }
+    // データの初期化 (マスタに存在する全グループのキーを確実に作成)
+
+    const entry: any = { 
+
+      date: `${month}-01`, 
+
+      total: 0, 
+
+      total_invested: 0, 
+
+      liability: 0 
+
+    }
+
+    
+
+    // グループIDの取得
+
+    const groupIds = groups.length > 0 ? groups.map((g: any) => g.id) : ['bank', 'securities', 'pension', 'point', 'wallet']
+
+    groupIds.forEach((id: string) => { 
+
+      entry[id] = 0 
+
+      entry[`${id}_invested`] = 0 
+
     })
-    return entry
-  })
+
+
+
+        // 全口座の「現時点の最新値」を集計
+
+
+
+        latestBalances.forEach((amount, accId) => {
+
+
+
+          const acc = accounts.find(a => a.id === accId)
+
+
+
+          if (!acc) return
+
+
+
+    
+
+
+
+          const invested = Number(latestInvested.get(accId)) || 0
+
+
+
+          const currentAmount = Number(amount) || 0
+
+
+
+    
+
+
+
+          if (acc.is_liability) {
+
+
+
+            entry.liability += currentAmount
+
+
+
+            entry.total -= currentAmount
+
+
+
+          } else {
+
+
+
+            const typeKey = acc.type
+
+
+
+            if (entry.hasOwnProperty(typeKey)) {
+
+
+
+              entry[typeKey] = Number(entry[typeKey] + currentAmount)
+
+
+
+              entry[`${typeKey}_invested`] = Number(entry[`${typeKey}_invested`] + invested)
+
+
+
+            } else {
+
+
+
+              const fallback = groupIds.includes('wallet') ? 'wallet' : groupIds[groupIds.length - 1]
+
+
+
+              entry[fallback] = Number((entry[fallback] || 0) + currentAmount)
+
+
+
+              entry[`${fallback}_invested`] = Number((entry[`${fallback}_invested`] || 0) + invested)
+
+
+
+            }
+
+
+
+            entry.total = Number(entry.total + currentAmount)
+
+
+
+            entry.total_invested = Number(entry.total_invested + invested)
+
+
+
+          }
+
+
+
+        })
+
+
+
+        return entry
+
+
+
+      })
+
+
 
   return history
+
 }
 
+import { exec } from 'child_process'
+import { writeFile, unlink } from 'fs/promises'
+import path from 'path'
+import { tmpdir } from 'os'
+
 /**
- * 給与履歴の取得
+ * 給与履歴の取得 (リレーションとJSON解析を強化した完全版)
  */
 export async function getSalaryHistory() {
   const supabase = await createClient()
+  
+  // 1. transactions と結合して取得 (dateを取得するため)
   const { data, error } = await supabase
     .from('salary_slips')
-    .select('*')
-    .order('date', { ascending: true })
+    .select(`
+      *,
+      transactions!inner (
+        date,
+        amount
+      )
+    `)
+    .order('transactions(date)', { ascending: true })
 
-  if (error) return []
-  return data
+  if (error) {
+    console.error("Salary history error:", error)
+    return []
+  }
+
+  return (data || []).map(s => {
+    // detailsが文字列ならパース、オブジェクトならそのまま
+    const d = typeof s.details === 'string' ? JSON.parse(s.details) : (s.details || {})
+    
+    // 数値抽出ヘルパー (カンマ除去と数値変換)
+    const num = (key: string) => {
+      const val = d[key]
+      if (val === undefined || val === null) return 0
+      if (typeof val === 'string') return Number(val.replace(/[^0-9.-]/g, '')) || 0
+      return Number(val) || 0
+    }
+
+    // --- インテリジェント・マッピング ---
+    // カラムの値があれば使い、なければJSONから特定キーワードを探す
+    
+    // 1. 基本給 (本給)
+    const base = Number(s.base_pay) || num('本給') || num('基本給')
+    
+    // 2. 残業代 (時間外勤務手当)
+    const overtime = Number(s.overtime_pay) || num('時間外勤務手当') || num('残業手当') || num('時間外手当')
+    
+    // 3. 税金 (所得税 + 住民税)
+    const tax = Number(s.tax_total) || (num('所得税') + num('住民税'))
+    
+    // 4. 社会保険 (健康 + 厚生年金 + 雇用)
+    const insurance = Number(s.insurance_total) || (num('健康保険料') + num('厚生年金保険料') + num('雇用保険料'))
+    
+    // 5. 額面 (支給金合計)
+    const gross = num('支給金合計') || (base + overtime + num('通勤手当'))
+    
+    // 6. 手取り (差引支給金 または 銀行振込)
+    const net = Number(s.net_pay) || num('差引支給金') || num('銀行振込(一般)') || Number(s.transactions?.amount)
+
+    // 賞与判定 (ファイル名 'SYO' または トランザクション名 '賞与')
+    const isBonus = (s.image_path && s.image_path.includes('SYO')) || 
+                    (s.transactions?.description && s.transactions.description.includes('賞与')) ||
+                    false
+
+    // 持株会積立の合算 (通常 + 賞与時の項目)
+    const stockSavings = num('持株会積立') + num('持株会定額積立金')
+
+    return {
+      ...s,
+      date: s.transactions?.date || '2024-01-01', // 正しい支給日
+      base_pay: base,
+      overtime_pay: overtime,
+      tax: tax,
+      social_insurance: insurance,
+      net_pay: net,
+      gross_pay: gross,
+      stock_savings: stockSavings,
+      allowances: Math.max(0, gross - base - overtime),
+      is_bonus: isBonus
+    }
+  })
+}
+
+/**
+ * 給与PDFの解析 (Pythonスクリプトの呼び出し)
+ */
+export async function analyzePayrollPdf(formData: FormData) {
+  const file = formData.get('file') as File
+  if (!file) throw new Error('No file provided')
+
+  const bytes = await file.arrayBuffer()
+  const buffer = Buffer.from(bytes)
+
+  // 一時ファイルとして保存
+  const tempPath = path.join(tmpdir(), `payroll_${Date.now()}.pdf`)
+  await writeFile(tempPath, buffer)
+
+  // Pythonスクリプトの実行パス (.venvを使用)
+  const pythonPath = path.join(process.cwd(), '..', '.venv', 'Scripts', 'python.exe')
+  const scriptPath = path.join(process.cwd(), '..', 'collectors', 'payroll_parser.py')
+
+  return new Promise((resolve, reject) => {
+    exec(`"${pythonPath}" "${scriptPath}" "${tempPath}"`, async (error, stdout, stderr) => {
+      // 処理が終わったら一時ファイルを削除
+      await unlink(tempPath).catch(console.error)
+
+      if (error) {
+        console.error('Python Error:', stderr)
+        return reject(new Error('PDFの解析に失敗しました'))
+      }
+
+      try {
+        const result = JSON.parse(stdout)
+        resolve(result)
+      } catch (e) {
+        reject(new Error('解析結果の読み取りに失敗しました'))
+      }
+    })
+  })
+}
+
+/**
+ * 給与明細データの保存
+ */
+export async function saveSalarySlip(data: {
+  date: string,
+  base_pay: number,
+  overtime_pay: number,
+  tax: number,
+  social_insurance: number,
+  net_pay: number,
+  to_account_id: string, // 追加: 入金先口座
+  details: any
+}) {
+  const supabase = await createClient()
+  
+  // 1. まず給与振込として transactions テーブルに記録 (親レコード)
+  const { data: trans, error: transError } = await supabase
+    .from('transactions')
+    .insert({
+      date: data.date,
+      amount: data.net_pay,
+      type: 'income',
+      to_account_id: data.to_account_id, // 指定
+      description: '給与振込 (解析データ)',
+      status: 'confirmed',
+      source: 'salary'
+    })
+    .select()
+    .single()
+
+  if (transError) throw new Error(`Transaction error: ${transError.message}`)
+
+  // 2. salary_slips テーブルに詳細を保存 (子レコード)
+  const { error: slipError } = await supabase
+    .from('salary_slips')
+    .insert({
+      transaction_id: trans.id,
+      base_pay: data.base_pay,
+      overtime_pay: data.overtime_pay,
+      tax: data.tax,
+      social_insurance: data.social_insurance,
+      net_pay: data.net_pay, // スキーマにある場合
+      date: data.date,       // スキーマにある場合
+      details: data.details
+    })
+
+  if (slipError) {
+    // 失敗した場合は一部のカラムを削ってリトライ (互換性のため)
+    console.warn('Salary slip full insert failed, retrying with minimal fields...', slipError.message)
+    await supabase.from('salary_slips').insert({
+      transaction_id: trans.id,
+      base_pay: data.base_pay,
+      overtime_pay: data.overtime_pay,
+      details: data.details
+    })
+  }
+
+  revalidatePath('/analyze')
+  revalidatePath('/assets')
+  return { success: true }
 }
 
 // --- AI予測 (Gemini) ---

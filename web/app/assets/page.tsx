@@ -48,6 +48,9 @@ function AccountCard({ acc, getIcon, onEdit, onEditAccount, onDeleteAccount }: a
   const [imageError, setImageError] = useState(false);
   const iconUrl = getSmartIconUrl(acc.name, acc.icon_url);
   const brandLogo = getCardBrandLogo(acc.card_brand);
+  
+  // 資産グループ名を取得（リレーション先から）
+  const groupName = acc.asset_groups?.name || acc.type;
 
   return (
     <Card 
@@ -107,7 +110,12 @@ function AccountCard({ acc, getIcon, onEdit, onEditAccount, onDeleteAccount }: a
             )}
           </Box>
           <Stack gap={0} style={{ minWidth: 0 }}>
-            <Text fw={700} size="sm" truncate>{acc.name}</Text>
+            <Group gap={6}>
+              <Text fw={700} size="sm" truncate>{acc.name}</Text>
+              <Badge size="9px" variant="dot" color={acc.asset_groups?.color || 'gray'}>
+                {groupName}
+              </Badge>
+            </Group>
             <Text size="xs" c="dimmed">
               {acc.last_updated ? format(new Date(acc.last_updated), 'yyyy/MM/dd') : '未更新'}
             </Text>

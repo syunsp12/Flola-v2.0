@@ -113,10 +113,10 @@ export function DashboardView({ data }: { data: DashboardData }) {
         <motion.div variants={item}>
           <div style={{ minWidth: 0 }}>
             <Text size="sm" fw={700} mb="sm" c="dimmed" tt="uppercase">Cash Flow Trend</Text>
-            <Paper p="md" radius="md" withBorder style={{ height: rem(220), display: 'flex', flexDirection: 'column' }}>
-              <div style={{ flex: 1, minHeight: 0, minWidth: 0 }}>
+            <Paper p="md" radius="md" withBorder style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={{ flex: 1, minHeight: rem(200), minWidth: 0 }}>
                 {mounted && (
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height={200}>
                     <BarChart data={data.monthlyFlowData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
                       <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} dy={10} />
