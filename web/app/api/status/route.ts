@@ -8,7 +8,7 @@ export async function GET(request: Request) {
   const token = searchParams.get('token')
 
   // 簡易セキュリティ
-  const VALID_TOKEN = process.env.WIDGET_TOKEN || 'flola-secret-key'
+  const VALID_TOKEN = process.env.ADMIN_API_KEY || 'flola-secret-key'
 
   if (token !== VALID_TOKEN) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
