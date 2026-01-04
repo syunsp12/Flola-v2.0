@@ -1,7 +1,8 @@
 'use client'
 
 import React from 'react'
-import { Paper, Group, Text, Box, ThemeIcon, Image } from '@mantine/core'
+import { Paper, Group, Text, Box, ThemeIcon } from '@mantine/core'
+import Image from 'next/image'
 import { useWindowScroll } from '@mantine/hooks'
 
 interface PageHeaderProps {
@@ -40,14 +41,16 @@ export function PageHeader({
     >
       <Group justify="space-between" align="center" wrap="nowrap" gap="xs">
         <Group gap="xs" wrap="nowrap" style={{ flex: isScrolled && tabs ? 1 : 'unset', minWidth: 0 }}>
-          <Image
-            src="/logo.jpg"
-            alt="Flola Logo"
-            w={isScrolled ? 24 : 30}
-            h={isScrolled ? 24 : 30}
-            radius="sm"
-            fallbackSrc="https://placehold.co/30x30?text=F"
-          />
+          <div style={{ position: 'relative', width: isScrolled ? 24 : 30, height: isScrolled ? 24 : 30 }}>
+            <Image
+              src="/logo.jpg"
+              alt="Flola Logo"
+              fill
+              priority
+              sizes="(max-width: 768px) 30px, 30px"
+              style={{ objectFit: 'cover', borderRadius: '4px' }}
+            />
+          </div>
           
           {!isScrolled ? (
             <Box style={{ minWidth: 0 }}>
