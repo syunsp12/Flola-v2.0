@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { getTransactions, updateTransaction, applyAiCategories, getCategories, createTransaction, requestHistoryFetch, getAccountsWithBalance } from '@/app/actions'
+import { getTransactions, updateTransaction, applyAiCategories, getCategories, createTransaction, requestHistoryFetch, getAccountsWithBalance, deleteTransaction, revertTransactionStatus } from '@/app/actions'
 import { 
   Card, 
   Text, 
@@ -30,7 +30,7 @@ import {
 import { DatePickerInput } from '@mantine/dates'
 import { useDisclosure } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
-import { Check, X, Wand2, CreditCard, CalendarDays, RefreshCw, Plus, PenLine, History, Wallet, ArrowUpRight, ArrowDownLeft, Settings2, Landmark } from 'lucide-react'
+import { Check, X, Wand2, CreditCard, CalendarDays, RefreshCw, Plus, PenLine, History, Wallet, ArrowUpRight, ArrowDownLeft, Settings2, Landmark, Undo2, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
 import { PageHeader } from '@/components/layout/page-header'
@@ -75,12 +75,15 @@ function TransactionItem({
   accountsRaw,
   handleFieldChange, 
   handleIgnore, 
-  handleApprove 
+  handleApprove,
+  handleRevert,
+  handleDelete
 }: any) {
   const [editingField, setEditingField] = useState<string | null>(null)
   const [imageError, setImageError] = useState(false)
   
   const isPending = t.status === 'pending'
+  const isConfirmed = t.status === 'confirmed'
   const isExpense = t.type === 'expense'
 
   const stopEditing = () => setEditingField(null)
@@ -116,13 +119,13 @@ function TransactionItem({
         radius="lg" 
         withBorder 
         style={{ 
-          opacity: t.status === 'confirmed' ? 0.7 : 1,
-          backgroundColor: t.status === 'confirmed' ? 'var(--mantine-color-gray-0)' : 'white',
+          opacity: isConfirmed ? 0.9 : 1,
+          backgroundColor: isConfirmed ? 'var(--mantine-color-gray-0)' : 'white',
           borderLeft: `4px solid ${isExpense ? 'var(--mantine-color-red-5)' : 'var(--mantine-color-teal-5)'}`,
           overflow: 'visible'
         }}
       >
-        {t.status === 'confirmed' && (
+        {isConfirmed && (
           <Badge 
             color="green" 
             variant="light" 
@@ -335,6 +338,33 @@ function TransactionItem({
               </Group>
             </Box>
           )}
+
+          {isConfirmed && (
+            <Box mt="xs">
+              <Group gap="sm" grow>
+                <Button 
+                  variant="subtle" 
+                  color="red" 
+                  size="xs"
+                  radius="md"
+                  leftSection={<Trash2 size={14} />}
+                  onClick={() => handleDelete(t.id)}
+                >
+                  削除
+                </Button>
+                <Button 
+                  variant="light" 
+                  color="orange" 
+                  size="xs"
+                  radius="md"
+                  leftSection={<Undo2 size={14} />}
+                  onClick={() => handleRevert(t.id)}
+                >
+                  差し戻し
+                </Button>
+              </Group>
+            </Box>
+          )}
         </Stack>
       </Card>
     </motion.div>
@@ -348,7 +378,9 @@ function TransactionList({
   accountsRaw,
   handleFieldChange,
   handleIgnore, 
-  handleApprove 
+  handleApprove,
+  handleRevert,
+  handleDelete
 }: any) {
   return (
     <Stack gap="md">
@@ -378,6 +410,8 @@ function TransactionList({
             handleFieldChange={handleFieldChange}
             handleIgnore={handleIgnore}
             handleApprove={handleApprove}
+            handleRevert={handleRevert}
+            handleDelete={handleDelete}
           />
         ))}
       </AnimatePresence>
@@ -480,6 +514,27 @@ function InboxContent() {
     setTransactions(prev => prev.filter(item => item.id !== id))
     await updateTransaction(id, { status: 'ignore' })
     notifications.show({ message: '除外しました', color: 'gray' })
+  }
+
+  const handleRevert = async (id: string) => {
+    setTransactions(prev => prev.filter(item => item.id !== id))
+    try {
+      await revertTransactionStatus(id)
+      notifications.show({ message: '承認待ちに戻しました', color: 'orange' })
+    } catch (e) {
+      notifications.show({ title: 'Error', message: '差し戻しに失敗しました', color: 'red' })
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('この取引を完全に削除しますか？')) return
+    setTransactions(prev => prev.filter(item => item.id !== id))
+    try {
+      await deleteTransaction(id)
+      notifications.show({ message: '削除しました', color: 'gray' })
+    } catch (e) {
+      notifications.show({ title: 'Error', message: '削除に失敗しました', color: 'red' })
+    }
   }
 
   const handleFieldChange = (transactionId: string, field: string, value: any) => {
@@ -603,6 +658,8 @@ function InboxContent() {
                     handleFieldChange={handleFieldChange}
                     handleIgnore={handleIgnore}
                     handleApprove={handleApprove}
+                    handleRevert={handleRevert}
+                    handleDelete={handleDelete}
                   />
                 </Stack>
               ) : loading ? (
@@ -631,6 +688,8 @@ function InboxContent() {
                   handleFieldChange={handleFieldChange}
                   handleIgnore={handleIgnore}
                   handleApprove={handleApprove}
+                  handleRevert={handleRevert}
+                  handleDelete={handleDelete}
                 />
               ) : loading ? (
                 <Stack gap="md">

@@ -234,6 +234,32 @@ export async function createTransaction(data: {
   return { success: true }
 }
 
+export async function deleteTransaction(id: string) {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('transactions')
+    .delete()
+    .eq('id', id)
+
+  if (error) throw new Error(error.message)
+  revalidatePath('/inbox')
+  revalidatePath('/')
+  return { success: true }
+}
+
+export async function revertTransactionStatus(id: string) {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('transactions')
+    .update({ status: 'pending' })
+    .eq('id', id)
+
+  if (error) throw new Error(error.message)
+  revalidatePath('/inbox')
+  revalidatePath('/')
+  return { success: true }
+}
+
 
 // --- 11. AIカテゴリ一括適用 ---
 export async function applyAiCategories(targets: { id: string, description: string | null }[]) {
