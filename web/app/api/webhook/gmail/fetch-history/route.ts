@@ -1,5 +1,15 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
+
+// Admin API Keyで保護されたルートなので、Service Role Keyを使用してRLSをバイパスする
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
+if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  console.warn('SUPABASE_SERVICE_ROLE_KEY is not set. Using ANON_KEY. RLS might block updates.')
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey)
 
 export async function GET(request: Request) {
   try {
@@ -51,6 +61,7 @@ export async function GET(request: Request) {
     const requestData = requests[0]
 
     // ステータスを processing に更新
+    // Service Role Keyを使っているため、RLSに関わらず更新可能
     await supabase
       .from('history_fetch_requests')
       .update({ status: 'processing', updated_at: new Date().toISOString() })
@@ -107,6 +118,7 @@ export async function POST(request: Request) {
     if (message) updateData.message = message
     if (processedCount !== undefined) updateData.processed_count = processedCount
 
+    // Service Role Keyを使っているため、RLSに関わらず更新可能
     const { error } = await supabase
       .from('history_fetch_requests')
       .update(updateData)

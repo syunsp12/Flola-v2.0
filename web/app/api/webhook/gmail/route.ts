@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 
 // GASから送られてくるデータの型定義
 type Payload = {
@@ -7,17 +7,40 @@ type Payload = {
   amount: number
   description: string
   source: string
+  // GAS側で追加したカード名 (Vpass系のみ付与される想定)
+  card_name?: string 
 }
+
+// --- 口座名マッピング設定 ---
+// 左側 (Key): GASの getVpassCardType 関数が返す card_name
+// 右側 (Value): Supabaseの accounts テーブルにある正確な name
+const ACCOUNT_MAP: Record<string, string> = {
+  // DBに存在する名前に完全一致させます
+  'Oliveフレキシブルペイ(デビット)': 'Oliveフレキシブルペイ(デビット)',
+  'Oliveフレキシブルペイ(クレジット)': 'Oliveフレキシブルペイ(クレジット)',
+  '三井住友ゴールド(NL)': '三井住友ゴールド(NL)',
+  
+  // DBに「その他」がないため、とりあえずゴールドNLに寄せるか、
+  // もし「三井住友カード」という汎用口座を作るならそれに割り当ててください。
+  // ここでは既存の「三井住友ゴールド(NL)」に割り当てています。
+  '三井住友カード(その他)': '三井住友ゴールド(NL)',
+  
+  // source判定で使うものも念のため定義
+  'Viewカード': 'Viewカード',
+  '三井住友銀行': '三井住友銀行'
+}
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
+const supabase = createClient(supabaseUrl, supabaseKey)
 
 export async function POST(request: Request) {
   try {
-    // 1. APIキー認証 (簡易版)
-    // URLクエリパラメータ ?key=... で認証します
+    // 1. APIキー認証
     const { searchParams } = new URL(request.url)
     const key = searchParams.get('key')
     
-    // 環境変数に設定したAPIキーと一致するか確認（簡易セキュリティ）
-    // ※後でVercelの環境変数に ADMIN_API_KEY を設定します
     if (key !== process.env.ADMIN_API_KEY) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -35,39 +58,54 @@ export async function POST(request: Request) {
       const amount = Math.abs(record.amount) 
       const description = record.description || '不明'
       
-      // --- 口座とタイプの判定ロジックを強化 ---
-      let accountName = 'Oliveフレキシブルペイ' // デフォルト（三井住友カード等）
+      let dbAccountName = ''
       let type: 'income' | 'expense' = 'expense'
 
-      if (record.source.includes('view')) {
-        accountName = 'Viewカード'
-      } else if (record.source.includes('smbc')) {
-        accountName = '三井住友銀行'
-        // 入金通知の場合はタイプをincomeにする
-        if (record.source === 'email_smbc_deposit') {
-          type = 'income'
+      // --- 口座名の決定ロジック ---
+
+      // パターンA: GASから card_name が送られてきている場合 (Vpass系)
+      if (record.card_name && ACCOUNT_MAP[record.card_name]) {
+        dbAccountName = ACCOUNT_MAP[record.card_name]
+      } 
+      // パターンB: card_nameがない、またはMapにない場合は source で判定
+      else {
+        if (record.source.includes('view')) {
+          dbAccountName = ACCOUNT_MAP['Viewカード']
+        } else if (record.source.includes('smbc') && !record.source.includes('vpass')) {
+          // vpassを含まない smbc = 銀行の入出金通知
+          dbAccountName = ACCOUNT_MAP['三井住友銀行']
+          if (record.source === 'email_smbc_deposit') {
+            type = 'income'
+          }
+        } else {
+          // デフォルト (万が一該当しない場合)
+          // DBにある安全なデフォルト口座を指定するか、エラーにします
+          // ここではOliveクレジットを仮のデフォルトとします
+          dbAccountName = 'Oliveフレキシブルペイ(クレジット)'
         }
       }
-      
+
+      // --- DBから口座IDを取得 ---
       const { data: account } = await supabase
         .from('accounts')
-        .select('id')
-        .eq('name', accountName)
+        .select('id, name')
+        .eq('name', dbAccountName)
         .single()
         
       if (!account) {
-        console.error(`Account not found: ${accountName}`)
+        console.error(`❌ Account not found in DB. Target: "${dbAccountName}" (GAS source: ${record.source}, card: ${record.card_name})`)
         continue
       }
 
-      // 重複チェック (同日・同額・同名のデータが既にないか)
+      // --- 重複チェック ---
+      // transactionテーブルの設計に合わせて調整してください
       const { data: existing } = await supabase
         .from('transactions')
         .select('id')
         .eq('date', record.date)
         .eq('amount', amount)
         .eq('description', description)
-        .eq('from_account_id', account.id) // 同じ口座からのデータのみ
+        .eq('from_account_id', account.id)
         .single()
 
       if (existing) {
@@ -75,7 +113,7 @@ export async function POST(request: Request) {
         continue
       }
 
-      // DB登録
+      // --- DB登録 ---
       const { error } = await supabase.from('transactions').insert({
         date: record.date,
         amount: amount,
@@ -84,6 +122,7 @@ export async function POST(request: Request) {
         from_account_id: account.id,
         status: 'pending', 
         source: 'gmail_webhook'
+        // category_id など必須カラムがある場合は適宜追加してください
       })
 
       if (error) {
@@ -93,7 +132,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // 3. ログ記録 (System Logs)
+    // 3. ログ記録
     await supabase.from('system_logs').insert({
       source: 'api_webhook_gmail',
       level: 'info',

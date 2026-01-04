@@ -404,6 +404,7 @@ function InboxContent() {
   const [newAmount, setNewAmount] = useState<string | number>('')
   const [newDescription, setNewDescription] = useState("")
   const [newCategoryId, setNewCategoryId] = useState<string | null>(null)
+  const [newAccountId, setNewAccountId] = useState<string | null>(null)
 
   // 過去履歴取得用
   const [historyOpened, { open: historyOpen, close: historyClose }] = useDisclosure(false)
@@ -488,7 +489,7 @@ function InboxContent() {
   }
 
   const handleManualSave = async () => {
-    if (!newAmount || !newDescription || !newCategoryId || !newDate) {
+    if (!newAmount || !newDescription || !newCategoryId || !newDate || !newAccountId) {
       notifications.show({ message: '必須項目を入力してください', color: 'red' })
       return
     }
@@ -498,6 +499,7 @@ function InboxContent() {
         amount: Number(newAmount),
         description: newDescription,
         category_id: Number(newCategoryId),
+        from_account_id: newAccountId,
         status: 'confirmed'
       })
       notifications.show({ title: 'Success', message: '登録しました', color: 'green' })
@@ -505,6 +507,7 @@ function InboxContent() {
       setNewAmount('')
       setNewDescription('')
       setNewCategoryId(null)
+      setNewAccountId(null)
       setNewDate(new Date())
       close()
     } catch (e) {
@@ -717,6 +720,14 @@ function InboxContent() {
               data={categoryOptions}
               value={newCategoryId}
               onChange={setNewCategoryId}
+              searchable
+            />
+            <Select
+              label="口座"
+              placeholder="選択してください"
+              data={accountOptions}
+              value={newAccountId}
+              onChange={setNewAccountId}
               searchable
             />
             <Button fullWidth onClick={handleManualSave} mt="md">

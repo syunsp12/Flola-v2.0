@@ -211,6 +211,7 @@ export async function createTransaction(data: {
   amount: number
   description: string
   category_id: number
+  from_account_id: string
   status?: 'confirmed' | 'pending'
 }) {
   const supabase = await createClient()
@@ -223,6 +224,7 @@ export async function createTransaction(data: {
       description: data.description,
       category_id: data.category_id,
       type: 'expense',
+      from_account_id: data.from_account_id,
       status: data.status || 'confirmed',
     })
 
