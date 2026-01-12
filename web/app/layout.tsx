@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import { ColorSchemeScript, MantineProvider, createTheme } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
 import { BottomNav } from "@/components/bottom-nav";
+import SpeedInsights from "@/components/speed-insights";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
