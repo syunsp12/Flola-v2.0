@@ -28,7 +28,7 @@ import {
 import { DatePickerInput } from '@mantine/dates'
 import { useDisclosure } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
-import { Check, X, CreditCard, RefreshCw, Plus, PenLine, History, Wallet, ArrowUpRight, ArrowDownLeft, Trash2, Undo2 } from 'lucide-react'
+import { Check, X, CreditCard, RefreshCw, Plus, PenLine, History, Wallet, ArrowUpRight, ArrowDownLeft, Trash2, Undo2, Landmark } from 'lucide-react'
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
 import { PageHeader } from '@/components/layout/page-header'
