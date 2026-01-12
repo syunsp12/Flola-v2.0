@@ -1,3 +1,5 @@
 {
-    "git.ignoreLimitWarning": true
+    "git.ignoreLimitWarning": true,
+    "python.defaultInterpreterPath": "C:\\Users\\syuns\\miniconda3\\envs\\flola-dev\\python.exe",
+    "python.terminal.activateEnvironment": true
 }

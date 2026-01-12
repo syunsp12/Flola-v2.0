@@ -1,0 +1,11 @@
+name: flola-dev
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - nodejs=20
+  - pip
+  - pip:
+    - playwright
+    - supabase
+    - python-dotenv

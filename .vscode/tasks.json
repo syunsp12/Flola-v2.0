@@ -1,0 +1,19 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start Dev (run_dev.bat)",
+      "type": "shell",
+      "command": "${workspaceFolder}\\run_dev.bat",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Start Dev (PowerShell)",
+      "type": "shell",
+      "command": "powershell -ExecutionPolicy ByPass -File \"${workspaceFolder}\\run_dev.ps1\"",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    }
+  ]
+}

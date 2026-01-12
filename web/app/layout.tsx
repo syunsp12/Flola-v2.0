@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { ColorSchemeScript, MantineProvider, createTheme } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import { BottomNav } from "@/components/bottom-nav";
 import "./globals.css";
 
