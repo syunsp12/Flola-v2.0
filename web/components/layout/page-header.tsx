@@ -21,7 +21,13 @@ export function PageHeader({
   bottomContent, 
 }: PageHeaderProps) {
   const [scroll] = useWindowScroll()
-  const isScrolled = scroll.y > 40
+  const [mounted, setMounted] = React.useState(false)
+  
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const isScrolled = mounted && scroll.y > 40
 
   return (
     <Paper 
@@ -47,6 +53,7 @@ export function PageHeader({
               alt="Flola Logo"
               fill
               priority
+              unoptimized
               sizes="(max-width: 768px) 30px, 30px"
               style={{ objectFit: 'cover', borderRadius: '4px' }}
             />

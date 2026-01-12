@@ -8,7 +8,12 @@ export async function GET(request: Request) {
   const token = searchParams.get('token')
 
   // 簡易セキュリティ
-  const VALID_TOKEN = process.env.ADMIN_API_KEY || 'flola-secret-key'
+  const VALID_TOKEN = process.env.ADMIN_API_KEY
+
+  if (!VALID_TOKEN) {
+    console.error('ADMIN_API_KEY is not set')
+    return NextResponse.json({ error: 'Server Configuration Error' }, { status: 500 })
+  }
 
   if (token !== VALID_TOKEN) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

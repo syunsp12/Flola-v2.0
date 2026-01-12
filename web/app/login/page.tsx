@@ -72,6 +72,7 @@ export default function LoginPage() {
               placeholder="your@email.com"
               leftSection={<Mail size={16} />}
               required
+              autoComplete="email"
             />
             <PasswordInput
               label="Password"
@@ -79,6 +80,7 @@ export default function LoginPage() {
               placeholder="Your password"
               leftSection={<Lock size={16} />}
               required
+              autoComplete="current-password"
             />
             <Button 
               type="submit" 

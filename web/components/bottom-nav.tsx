@@ -26,6 +26,11 @@ export function BottomNav() {
     return () => clearInterval(interval)
   }, [pathname])
 
+  // ログイン画面では表示しない
+  if (pathname === '/login' || pathname.startsWith('/auth')) {
+    return null
+  }
+
   const items = [
     { href: '/inbox', label: 'Inbox', icon: Inbox, count: pendingCount },
     { href: '/assets', label: 'Assets', icon: Landmark },
