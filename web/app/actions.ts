@@ -20,7 +20,8 @@ export async function getTransactions(filter: TransactionFilter = {}) {
     .select(`
       *,
       accounts!from_account_id(name),
-      categories(id, name)
+      categories!category_id(id, name),
+      user_categories:categories!user_category_id(id, name)
     `)
     .order('date', { ascending: false })
     .order('created_at', { ascending: false })
@@ -50,6 +51,8 @@ export async function getTransactions(filter: TransactionFilter = {}) {
     category_id: t.user_category_id !== null ? t.user_category_id : t.category_id,
     from_account_id: t.user_from_account_id !== null ? t.user_from_account_id : t.from_account_id,
     to_account_id: t.user_to_account_id !== null ? t.user_to_account_id : t.to_account_id,
+    // カテゴリオブジェクトも差し替え
+    categories: t.user_category_id !== null ? t.user_categories : t.categories
   }))
 
   return mappedData

@@ -47,7 +47,8 @@ async function getDashboardData() {
     .select(`
       id, amount, type, date, category_id, description, 
       user_amount, user_date, user_description, user_category_id, user_from_account_id,
-      categories(name),
+      categories!category_id(name),
+      user_categories:categories!user_category_id(name),
       accounts!from_account_id(name, icon_url, card_brand)
     `)
     .eq('status', 'confirmed')
@@ -61,6 +62,7 @@ async function getDashboardData() {
     date: t.user_date !== null ? t.user_date : t.date,
     description: t.user_description !== null ? t.user_description : t.description,
     category_id: t.user_category_id !== null ? t.user_category_id : t.category_id,
+    categories: t.user_category_id !== null ? t.user_categories : t.categories
   }))
 
   const monthlyFlow = new Map<string, { income: number, expense: number }>()

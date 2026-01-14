@@ -10,7 +10,7 @@ export default {
         'mantine-breakpoint-xl': '88em',
       },
     },
-    tailwindcss: {},
+    '@tailwindcss/postcss': {},
     autoprefixer: {},
   },
 };
