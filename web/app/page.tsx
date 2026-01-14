@@ -42,16 +42,26 @@ async function getDashboardData() {
 
   // 2. 収支トレンド (過去6ヶ月)
   const sixMonthsAgo = startOfMonth(subMonths(now, 5)).toISOString()
-  const { data: transactions } = await supabase
+  const { data: transactionsRaw } = await supabase
     .from('transactions')
     .select(`
       id, amount, type, date, category_id, description, 
+      user_amount, user_date, user_description, user_category_id, user_from_account_id,
       categories(name),
       accounts!from_account_id(name, icon_url, card_brand)
     `)
     .eq('status', 'confirmed')
     .gte('date', sixMonthsAgo)
     .order('date', { ascending: true })
+
+  // ユーザーの修正値を優先して適用
+  const transactions = (transactionsRaw || []).map(t => ({
+    ...t,
+    amount: t.user_amount !== null ? Number(t.user_amount) : t.amount,
+    date: t.user_date !== null ? t.user_date : t.date,
+    description: t.user_description !== null ? t.user_description : t.description,
+    category_id: t.user_category_id !== null ? t.user_category_id : t.category_id,
+  }))
 
   const monthlyFlow = new Map<string, { income: number, expense: number }>()
   

@@ -40,7 +40,19 @@ export async function getTransactions(filter: TransactionFilter = {}) {
 
   const { data, error } = await query
   if (error) throw new Error(error.message)
-  return data
+
+  // ユーザーの修正値を優先して適用
+  const mappedData = (data || []).map(t => ({
+    ...t,
+    amount: t.user_amount !== null ? Number(t.user_amount) : t.amount,
+    date: t.user_date !== null ? t.user_date : t.date,
+    description: t.user_description !== null ? t.user_description : t.description,
+    category_id: t.user_category_id !== null ? t.user_category_id : t.category_id,
+    from_account_id: t.user_from_account_id !== null ? t.user_from_account_id : t.from_account_id,
+    to_account_id: t.user_to_account_id !== null ? t.user_to_account_id : t.to_account_id,
+  }))
+
+  return mappedData
 }
 
 // --- 2. 未承認データの取得 ---
@@ -62,11 +74,23 @@ export async function getPendingCount() {
 // --- 3. データの承認・更新 ---
 export async function updateTransaction(id: string, updates: any) {
   const supabase = await createClient()
-  const cleanUpdates = { ...updates, is_ai_suggested: false }
+  
+  // ユーザーの変更した情報を保持するためのマッピング
+  const mappedUpdates: any = { 
+    is_ai_suggested: false,
+    status: updates.status
+  }
+  
+  if (updates.amount !== undefined) mappedUpdates.user_amount = updates.amount
+  if (updates.date !== undefined) mappedUpdates.user_date = updates.date
+  if (updates.description !== undefined) mappedUpdates.user_description = updates.description
+  if (updates.category_id !== undefined) mappedUpdates.user_category_id = updates.category_id
+  if (updates.from_account_id !== undefined) mappedUpdates.user_from_account_id = updates.from_account_id
+  if (updates.to_account_id !== undefined) mappedUpdates.user_to_account_id = updates.to_account_id
 
   const { error } = await supabase
     .from('transactions')
-    .update(cleanUpdates)
+    .update(mappedUpdates)
     .eq('id', id)
 
   if (error) throw new Error(error.message)
@@ -277,7 +301,7 @@ export async function applyAiCategories(targets: { id: string, description: stri
     if (categoryId) {
       const { error } = await supabase
         .from('transactions')
-        .update({ category_id: categoryId, is_ai_suggested: true })
+        .update({ user_category_id: categoryId, is_ai_suggested: true })
         .eq('id', t.id)
       if (!error) updateCount++
     }
@@ -743,7 +767,9 @@ export async function getSalaryHistory() {
       *,
       transactions!inner (
         date,
-        amount
+        amount,
+        user_date,
+        user_amount
       )
     `)
     .order('transactions(date)', { ascending: true })
@@ -754,6 +780,10 @@ export async function getSalaryHistory() {
   }
 
   return (data || []).map(s => {
+    // ユーザー修正値を優先
+    const effectiveDate = s.transactions?.user_date || s.transactions?.date || '2024-01-01'
+    const effectiveAmount = s.transactions?.user_amount !== null ? Number(s.transactions?.user_amount) : Number(s.transactions?.amount)
+
     // detailsが文字列ならパース、オブジェクトならそのまま
     const d = typeof s.details === 'string' ? JSON.parse(s.details) : (s.details || {})
     
@@ -784,7 +814,7 @@ export async function getSalaryHistory() {
     const gross = num('支給金合計') || (base + overtime + num('通勤手当'))
     
     // 6. 手取り (差引支給金 または 銀行振込)
-    const net = Number(s.net_pay) || num('差引支給金') || num('銀行振込(一般)') || Number(s.transactions?.amount)
+    const net = Number(s.net_pay) || num('差引支給金') || num('銀行振込(一般)') || effectiveAmount
 
     // 賞与判定 (ファイル名 'SYO' または トランザクション名 '賞与')
     const isBonus = (s.image_path && s.image_path.includes('SYO')) || 
@@ -796,7 +826,7 @@ export async function getSalaryHistory() {
 
     return {
       ...s,
-      date: s.transactions?.date || '2024-01-01', // 正しい支給日
+      date: effectiveDate, // 正しい支給日
       base_pay: base,
       overtime_pay: overtime,
       tax: tax,

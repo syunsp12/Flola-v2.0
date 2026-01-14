@@ -38,5 +38,11 @@ export interface Transaction {
   is_subscription: boolean
   source: string | null
   raw_data: Json | null
+  user_amount: number | null
+  user_date: string | null
+  user_description: string | null
+  user_category_id: number | null
+  user_from_account_id: string | null
+  user_to_account_id: string | null
   created_at: string
 }
