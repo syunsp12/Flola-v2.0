@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { getTransactions, getCategories, getAccountsWithBalance } from '@/app/actions'
 import { InboxClient } from './inbox-client'
+import InboxLoading from './loading'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,7 +32,7 @@ async function InboxContent({ searchParams }: Props) {
 
 export default async function InboxPage(props: Props) {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<InboxLoading />}>
       <InboxContent {...props} />
     </Suspense>
   )
