@@ -166,7 +166,7 @@ export async function updateAssetBalance(accountId: string, amount: number, date
     )
 
   if (error) throw new Error(error.message)
-  revalidateTag('balances')
+  revalidateTag('balances', 'default')
   revalidatePath('/assets')
   revalidatePath('/')
   return { success: true }
@@ -354,7 +354,7 @@ export async function deleteAccount(id: string) {
   const supabase = await createClient()
   const { error } = await supabase.from('accounts').delete().eq('id', id)
   if (error) throw new Error("この口座に関連付けられた取引があるため削除できません")
-  revalidateTag('accounts')
+  revalidateTag('accounts', 'default')
   revalidatePath('/admin')
   revalidatePath('/assets')
   return { success: true }
