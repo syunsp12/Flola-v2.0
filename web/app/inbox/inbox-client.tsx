@@ -3,16 +3,16 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { getTransactions, updateTransaction, applyAiCategories, createTransaction, requestHistoryFetch, deleteTransaction, revertTransactionStatus } from '@/app/actions'
-import { 
-  Card, 
-  Text, 
-  Group, 
-  Button, 
-  Badge, 
-  Select, 
-  Modal, 
-  NumberInput, 
-  ActionIcon, 
+import {
+  Card,
+  Text,
+  Group,
+  Button,
+  Badge,
+  Select,
+  Modal,
+  NumberInput,
+  ActionIcon,
   Menu,
   Stack,
   ThemeIcon,
@@ -64,21 +64,21 @@ function GeminiIcon({ size = 16, ...props }: { size?: number } & React.Component
 }
 
 // 各取引アイテムのコンポーネント
-function TransactionItem({ 
-  t, 
-  index, 
-  categoryOptions, 
+function TransactionItem({
+  t,
+  index,
+  categoryOptions,
   accountOptions,
   accountsRaw,
-  handleFieldChange, 
-  handleIgnore, 
+  handleFieldChange,
+  handleIgnore,
   handleApprove,
   handleRevert,
   handleDelete
 }: any) {
   const [editingField, setEditingField] = useState<string | null>(null)
   const [imageError, setImageError] = useState(false)
-  
+
   const isPending = t.status === 'pending'
   const isConfirmed = t.status === 'confirmed'
   const isExpense = t.type === 'expense'
@@ -91,7 +91,7 @@ function TransactionItem({
   const brandLogo = getCardBrandLogo(currentAccount?.card_brand)
 
   const getAccountTypeIcon = (type: string) => {
-    switch(type) {
+    switch (type) {
       case 'bank': return <Landmark size={14} />
       case 'credit_card': return <CreditCard size={14} />
       default: return <Wallet size={14} />
@@ -102,33 +102,34 @@ function TransactionItem({
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ 
-        opacity: 0, 
+      exit={{
+        opacity: 0,
         scale: 0.95,
         filter: 'blur(8px)',
-        transition: { duration: 0.2 } 
+        transition: { duration: 0.2 }
       }}
       transition={{ duration: 0.3, delay: Math.min(index * 0.05, 0.5) }}
       layout
     >
-      <Card 
-        padding="md" 
-        radius="lg" 
-        withBorder 
-        style={{ 
-          opacity: isConfirmed ? 0.9 : 1,
+      <Card
+        padding="lg"
+        radius="xl"
+        withBorder
+        style={{
+          opacity: isConfirmed ? 0.85 : 1,
           backgroundColor: isConfirmed ? 'var(--mantine-color-gray-0)' : 'white',
-          borderLeft: `4px solid ${isExpense ? 'var(--mantine-color-red-5)' : 'var(--mantine-color-teal-5)'}`,
-          overflow: 'visible'
+          borderLeft: `5px solid ${isExpense ? 'var(--mantine-color-red-5)' : 'var(--mantine-color-teal-5)'}`,
+          overflow: 'visible',
+          transition: 'all 0.2s ease'
         }}
       >
         {isConfirmed && (
-          <Badge 
-            color="green" 
-            variant="light" 
-            pos="absolute" 
-            top={-8} 
-            right={10} 
+          <Badge
+            color="green"
+            variant="light"
+            pos="absolute"
+            top={-8}
+            right={10}
             style={{ boxShadow: 'var(--mantine-shadow-sm)' }}
           >
             Approved
@@ -155,10 +156,10 @@ function TransactionItem({
             ) : (
               <UnstyledButton onClick={() => isPending && setEditingField('date')}>
                 <Group gap={4} className={isPending ? "editable-field px-1" : ""}>
-                  <ThemeIcon 
-                    variant="light" 
-                    color={isExpense ? 'red' : 'teal'} 
-                    size="lg" 
+                  <ThemeIcon
+                    variant="light"
+                    color={isExpense ? 'red' : 'teal'}
+                    size="lg"
                     radius="xl"
                   >
                     {isExpense ? <ArrowUpRight size={18} /> : <ArrowDownLeft size={18} />}
@@ -174,7 +175,7 @@ function TransactionItem({
             {/* 金額 */}
             {isPending && editingField === 'amount' ? (
               <NumberInput
-                size="sm"
+                size="lg"
                 value={t.amount}
                 onChange={(val) => handleFieldChange(t.id, 'amount', Number(val))}
                 onBlur={stopEditing}
@@ -182,18 +183,23 @@ function TransactionItem({
                 autoFocus
                 hideControls
                 leftSection="¥"
-                styles={{ input: { fontWeight: 900, textAlign: 'right', width: rem(120), fontSize: rem(18) } }}
+                styles={{ input: { fontWeight: 900, textAlign: 'right', width: rem(140), fontSize: rem(24) } }}
               />
             ) : (
               <UnstyledButton onClick={() => isPending && setEditingField('amount')}>
-                <Text 
-                  fw={900} 
-                  size="xl" 
-                  c={isExpense ? 'dark' : 'teal.7'}
-                  className={isPending ? "editable-field px-2" : ""}
-                >
-                  {isExpense ? '-' : '+'}¥{t.amount.toLocaleString()}
-                </Text>
+                <Group gap={4} className={isPending ? "editable-field-amount px-2" : ""}>
+                  <Text
+                    fw={900}
+                    size="28px"
+                    c={isExpense ? 'red.7' : 'teal.7'}
+                    style={{ lineHeight: 1 }}
+                  >
+                    {isExpense ? '-' : '+'}¥{t.amount.toLocaleString()}
+                  </Text>
+                  {isPending && (
+                    <PenLine size={14} color="var(--mantine-color-gray-5)" style={{ marginTop: 2 }} />
+                  )}
+                </Group>
               </UnstyledButton>
             )}
           </Group>
@@ -201,32 +207,38 @@ function TransactionItem({
           {/* 中段：摘要 */}
           {isPending && editingField === 'description' ? (
             <TextInput
-              size="md"
+              size="lg"
               value={t.description || ''}
               onChange={(e) => handleFieldChange(t.id, 'description', e.currentTarget.value)}
               onBlur={stopEditing}
               onKeyDown={(e) => e.key === 'Enter' && stopEditing()}
               autoFocus
-              styles={{ input: { fontWeight: 700 } }}
+              styles={{ input: { fontWeight: 700, fontSize: rem(16) } }}
             />
           ) : (
-            <UnstyledButton 
+            <UnstyledButton
               onClick={() => isPending && setEditingField('description')}
-              style={{ textAlign: 'left' }}
+              style={{ textAlign: 'left', width: '100%' }}
             >
-              <Text 
-                fw={700} 
-                size="md" 
-                lineClamp={1} 
-                className={isPending ? "editable-field p-1" : ""}
-              >
-                {t.description || '(内容なし)'}
-              </Text>
+              <Group gap={6} wrap="nowrap">
+                <Text
+                  fw={700}
+                  size="md"
+                  lineClamp={2}
+                  style={{ flex: 1 }}
+                  className={isPending ? "editable-field p-1" : ""}
+                >
+                  {t.description || '(内容なし)'}
+                </Text>
+                {isPending && (
+                  <PenLine size={12} color="var(--mantine-color-gray-4)" style={{ flexShrink: 0 }} />
+                )}
+              </Group>
             </UnstyledButton>
           )}
 
           <Divider my="xs" color="gray.1" />
-          
+
           {/* 下段: メタデータ */}
           <Group justify="space-between" align="center">
             {/* 口座選択 */}
@@ -263,17 +275,17 @@ function TransactionItem({
                       </ThemeIcon>
                     )}
                     {brandLogo && (
-                      <Box 
-                        pos="absolute" 
-                        bottom={-3} 
-                        right={-3} 
-                        bg="white" 
-                        p={1.5} 
-                        style={{ 
+                      <Box
+                        pos="absolute"
+                        bottom={-3}
+                        right={-3}
+                        bg="white"
+                        p={1.5}
+                        style={{
                           border: '1px solid var(--mantine-color-gray-2)',
                           borderRadius: 'var(--mantine-radius-xs)',
-                          display: 'flex', 
-                          boxShadow: 'var(--mantine-shadow-xs)' 
+                          display: 'flex',
+                          boxShadow: 'var(--mantine-shadow-xs)'
                         }}
                       >
                         <Image src={brandLogo} w={12} h={8} fit="contain" />
@@ -298,37 +310,49 @@ function TransactionItem({
               searchable
               size="xs"
               leftSection={t.is_ai_suggested && <GeminiIcon size={16} />}
-              styles={{ 
-                input: { 
-                  fontWeight: 700, 
+              styles={{
+                input: {
+                  fontWeight: 700,
                   color: t.category_id ? 'var(--mantine-color-indigo-7)' : 'var(--mantine-color-gray-5)',
                   textAlign: 'right',
                   paddingRight: 0
-                } 
+                }
               }}
             />
           </Group>
 
           {isPending && (
-            <Box mt="xs">
-              <Group gap="sm" grow>
-                <Button 
-                  variant="light" 
-                  color="gray" 
-                  size="sm"
-                  radius="md"
-                  leftSection={<X size={16} />}
+            <Box mt="md">
+              <Group gap="xs" grow>
+                <Button
+                  variant="subtle"
+                  color="gray"
+                  size="md"
+                  radius="xl"
+                  leftSection={<X size={18} />}
                   onClick={() => handleIgnore(t.id)}
+                  styles={{
+                    root: {
+                      fontWeight: 700,
+                      height: rem(44)
+                    }
+                  }}
                 >
                   除外
                 </Button>
-                <Button 
-                  variant="filled" 
-                  color="indigo" 
-                  size="sm"
-                  radius="md"
-                  leftSection={<Check size={16} />}
+                <Button
+                  variant="gradient"
+                  gradient={{ from: 'indigo', to: 'blue', deg: 135 }}
+                  size="md"
+                  radius="xl"
+                  leftSection={<Check size={18} />}
                   onClick={() => handleApprove(t)}
+                  styles={{
+                    root: {
+                      fontWeight: 700,
+                      height: rem(44)
+                    }
+                  }}
                 >
                   承認
                 </Button>
@@ -339,9 +363,9 @@ function TransactionItem({
           {isConfirmed && (
             <Box mt="xs">
               <Group gap="sm" grow>
-                <Button 
-                  variant="subtle" 
-                  color="red" 
+                <Button
+                  variant="subtle"
+                  color="red"
                   size="xs"
                   radius="md"
                   leftSection={<Trash2 size={14} />}
@@ -349,9 +373,9 @@ function TransactionItem({
                 >
                   削除
                 </Button>
-                <Button 
-                  variant="light" 
-                  color="orange" 
+                <Button
+                  variant="light"
+                  color="orange"
                   size="xs"
                   radius="md"
                   leftSection={<Undo2 size={14} />}
@@ -368,31 +392,43 @@ function TransactionItem({
   )
 }
 
-function TransactionList({ 
-  transactions, 
-  categoryOptions, 
+function TransactionList({
+  transactions,
+  categoryOptions,
   accountOptions,
   accountsRaw,
   handleFieldChange,
-  handleIgnore, 
+  handleIgnore,
   handleApprove,
   handleRevert,
   handleDelete
 }: any) {
   return (
-    <Stack gap="md">
+    <Stack gap="lg">
       <style jsx global>{`
         .editable-field {
           transition: all 0.2s ease;
-          border-radius: 4px;
+          border-radius: 6px;
           border-bottom: 1px dashed transparent;
         }
         .editable-field:hover {
           background-color: var(--mantine-color-gray-0);
-          border-bottom-color: var(--mantine-color-gray-3);
+          border-bottom-color: var(--mantine-color-gray-4);
         }
         .editable-field:active {
           background-color: var(--mantine-color-gray-1);
+        }
+        .editable-field-amount {
+          transition: all 0.2s ease;
+          border-radius: 8px;
+        }
+        .editable-field-amount:hover {
+          background-color: var(--mantine-color-gray-0);
+          transform: scale(1.02);
+        }
+        .editable-field-amount:active {
+          background-color: var(--mantine-color-gray-1);
+          transform: scale(0.98);
         }
       `}</style>
       <AnimatePresence mode="popLayout">
@@ -423,9 +459,9 @@ interface InboxClientProps {
   initialStatus: 'pending' | 'confirmed';
 }
 
-export function InboxClient({ 
-  initialTransactions, 
-  initialCategories, 
+export function InboxClient({
+  initialTransactions,
+  initialCategories,
   initialAccounts,
   initialStatus
 }: InboxClientProps) {
@@ -487,7 +523,7 @@ export function InboxClient({
     const targets = transactions
       .filter(t => !t.category_id && t.status === 'pending')
       .map(t => ({ id: t.id, description: t.description }))
-    
+
     if (targets.length > 0) {
       try {
         const result = await applyAiCategories(targets)
@@ -512,8 +548,8 @@ export function InboxClient({
       return
     }
     setTransactions(prev => prev.filter(item => item.id !== t.id))
-    await updateTransaction(t.id, { 
-      status: 'confirmed', 
+    await updateTransaction(t.id, {
+      status: 'confirmed',
       category_id: t.category_id,
       amount: t.amount,
       date: t.date,
@@ -551,7 +587,7 @@ export function InboxClient({
   }
 
   const handleFieldChange = (transactionId: string, field: string, value: any) => {
-    setTransactions(prev => prev.map(t => 
+    setTransactions(prev => prev.map(t =>
       t.id === transactionId ? { ...t, [field]: value, is_ai_suggested: (field === 'category_id' || field === 'from_account_id') ? false : t.is_ai_suggested } : t
     ))
   }
@@ -611,10 +647,10 @@ export function InboxClient({
     setIsHistoryRequesting(true)
     try {
       await requestHistoryFetch(format(start, 'yyyy-MM-dd'), format(end, 'yyyy-MM-dd'))
-      notifications.show({ 
-        title: 'リクエスト完了', 
-        message: 'Gmailからの取得リクエストを送信しました。数分後にデータが反映されます。', 
-        color: 'green' 
+      notifications.show({
+        title: 'リクエスト完了',
+        message: 'Gmailからの取得リクエストを送信しました。数分後にデータが反映されます。',
+        color: 'green'
       })
       historyClose()
     } catch (e) {
@@ -652,9 +688,9 @@ export function InboxClient({
             <Tabs.Panel value="pending">
               {transactions.length > 0 ? (
                 <Stack gap="md">
-                  <Button 
-                    fullWidth 
-                    variant="gradient" 
+                  <Button
+                    fullWidth
+                    variant="gradient"
                     gradient={{ from: 'indigo', to: 'cyan' }}
                     leftSection={!aiLoading && <GeminiIcon size={20} />}
                     loading={aiLoading}
@@ -663,8 +699,8 @@ export function InboxClient({
                   >
                     AI Categorize with Gemini
                   </Button>
-                  <TransactionList 
-                    transactions={transactions} 
+                  <TransactionList
+                    transactions={transactions}
                     categoryOptions={categoryOptions}
                     accountOptions={accountOptions}
                     accountsRaw={accounts}
@@ -693,8 +729,8 @@ export function InboxClient({
 
             <Tabs.Panel value="confirmed">
               {transactions.length > 0 ? (
-                <TransactionList 
-                  transactions={transactions} 
+                <TransactionList
+                  transactions={transactions}
                   categoryOptions={categoryOptions}
                   accountOptions={accountOptions}
                   accountsRaw={accounts}
@@ -722,25 +758,25 @@ export function InboxClient({
           </motion.div>
         </AnimatePresence>
 
-        <Menu 
-          position="top-end" 
-          withArrow 
-          shadow="xl" 
+        <Menu
+          position="top-end"
+          withArrow
+          shadow="xl"
           transitionProps={{ transition: 'pop-bottom-right' }}
           opened={isMenuOpened}
           onChange={setIsMenuOpened}
         >
           <Menu.Target>
-            <ActionIcon 
-              variant="filled" 
-              color="black" 
-              size={rem(56)} 
-              radius="xl" 
-              pos="fixed" 
-              bottom={rem(100)} 
-              right={rem(20)} 
-              style={{ 
-                boxShadow: '0 8px 24px rgba(0,0,0,0.2)', 
+            <ActionIcon
+              variant="filled"
+              color="black"
+              size={rem(56)}
+              radius="xl"
+              pos="fixed"
+              bottom={rem(100)}
+              right={rem(20)}
+              style={{
+                boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
                 zIndex: 99,
               }}
             >
@@ -821,9 +857,9 @@ export function InboxClient({
               onChange={(val) => setHistoryRange(val as [Date | null, Date | null])}
               clearable
             />
-            <Button 
-              fullWidth 
-              onClick={handleRequestHistory} 
+            <Button
+              fullWidth
+              onClick={handleRequestHistory}
               loading={isHistoryRequesting}
               mt="md"
               leftSection={<History size={16} />}
