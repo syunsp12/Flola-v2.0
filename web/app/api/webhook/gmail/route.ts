@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { authenticateAdminApiRequest } from '@/lib/auth/admin-api'
 
 // GASから送られてくるデータの型定義
 type Payload = {
@@ -37,13 +38,8 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 
 export async function POST(request: Request) {
   try {
-    // 1. APIキー認証
-    const { searchParams } = new URL(request.url)
-    const key = searchParams.get('key')
-
-    if (key !== process.env.ADMIN_API_KEY) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const auth = authenticateAdminApiRequest(request)
+    if (!auth.ok) return auth.response
 
     const body = await request.json()
     const records: Payload[] = Array.isArray(body) ? body : [body]
@@ -87,7 +83,7 @@ export async function POST(request: Request) {
       }
 
       // --- DBから口座IDを取得 ---
-      const { data: account, error: accError } = await supabase
+      const { data: account } = await supabase
         .from('accounts')
         .select('id, name')
         .eq('name', dbAccountName)
