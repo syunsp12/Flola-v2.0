@@ -31,15 +31,25 @@ const ACCOUNT_MAP: Record<string, string> = {
   '三井住友銀行': '三井住友銀行'
 }
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+function getSupabaseAdminClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-const supabase = createClient(supabaseUrl, supabaseKey)
+  if (!supabaseUrl || !supabaseKey) {
+    return { error: NextResponse.json({ error: 'Supabase credentials are not configured' }, { status: 500 }) }
+  }
+
+  return { client: createClient(supabaseUrl, supabaseKey) }
+}
 
 export async function POST(request: Request) {
   try {
     const auth = authenticateAdminApiRequest(request)
     if (!auth.ok) return auth.response
+
+    const supabaseResult = getSupabaseAdminClient()
+    if ('error' in supabaseResult) return supabaseResult.error
+    const supabase = supabaseResult.client
 
     const body = await request.json()
     const records: Payload[] = Array.isArray(body) ? body : [body]
