@@ -4,7 +4,6 @@ import { createClient } from '@/utils/supabase/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { SCRAPER_JOB_CONFIG_MAP } from '@/lib/jobs/config'
-import { parsePayrollPdf } from '@/lib/payroll/parser'
 import { execFile } from 'child_process'
 import { access, writeFile, unlink } from 'fs/promises'
 import path from 'path'
@@ -1088,6 +1087,7 @@ export async function analyzePayrollPdfVercel(formData: FormData) {
 
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
+    const { parsePayrollPdf } = await import('@/lib/payroll/parser')
     const parsed = await parsePayrollPdf(buffer, file.name)
 
     return { success: true as const, data: parsed }
