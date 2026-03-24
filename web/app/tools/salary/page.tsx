@@ -16,6 +16,7 @@ import {
   Select,
   SimpleGrid,
   Stack,
+  Table,
   Text,
   TextInput,
 } from '@mantine/core'
@@ -43,6 +44,24 @@ type PayrollParseResponse =
 type AccountOption = {
   id: string
   name: string
+}
+
+type DetailKind = 'earning' | 'deduction' | 'reference'
+
+const DETAIL_KIND_OPTIONS = [
+  { value: 'earning', label: '支給' },
+  { value: 'deduction', label: '控除' },
+  { value: 'reference', label: '参考' },
+]
+
+function inferDetailKind(key: string): DetailKind {
+  if (/(税|保険|控除|積立|天引|差引)/.test(key)) {
+    return 'deduction'
+  }
+  if (/(支給|手当|給与|賞与|本給|基本給|総額|振込)/.test(key)) {
+    return 'earning'
+  }
+  return 'reference'
 }
 
 function normalizeDetails(input: Record<string, unknown>) {
@@ -85,6 +104,35 @@ function formatCurrency(value: number) {
   return `¥ ${value.toLocaleString()}`
 }
 
+const DETAIL_KIND_ORDER: DetailKind[] = ['earning', 'deduction', 'reference']
+
+const DETAIL_KIND_META: Record<DetailKind, { label: string; color: string; background: string; border: string }> = {
+  earning: {
+    label: '支給',
+    color: 'var(--mantine-color-green-8)',
+    background: 'var(--mantine-color-green-0)',
+    border: 'var(--mantine-color-green-3)',
+  },
+  deduction: {
+    label: '控除',
+    color: 'var(--mantine-color-red-8)',
+    background: 'var(--mantine-color-red-0)',
+    border: 'var(--mantine-color-red-3)',
+  },
+  reference: {
+    label: '参考',
+    color: 'var(--mantine-color-blue-8)',
+    background: 'var(--mantine-color-blue-0)',
+    border: 'var(--mantine-color-blue-3)',
+  },
+}
+
+function getNextDetailKind(kind: DetailKind): DetailKind {
+  const currentIndex = DETAIL_KIND_ORDER.indexOf(kind)
+  const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % DETAIL_KIND_ORDER.length : 0
+  return DETAIL_KIND_ORDER[nextIndex]
+}
+
 export default function SalaryPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -97,6 +145,7 @@ export default function SalaryPage() {
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null)
   const [uploadedFileName, setUploadedFileName] = useState<string>('')
   const [newFieldName, setNewFieldName] = useState('')
+  const [detailKinds, setDetailKinds] = useState<Record<string, DetailKind>>({})
 
   useEffect(() => {
     getAccountsWithBalance()
@@ -125,14 +174,23 @@ export default function SalaryPage() {
       return mode === 'max' ? Math.max(0, ...values) : values.reduce((sum, amount) => sum + amount, 0)
     }
 
+    const manualEarnings = Object.entries(details).reduce(
+      (sum, [key, amount]) => sum + (detailKinds[key] === 'earning' ? amount : 0),
+      0
+    )
+    const manualDeductions = Object.entries(details).reduce(
+      (sum, [key, amount]) => sum + (detailKinds[key] === 'deduction' ? amount : 0),
+      0
+    )
+
     return {
       base_pay: value(['基本給', '本給', '月給'], 'max'),
       overtime_pay: value(['時間外手当', '残業手当', '深夜手当', '休日手当', '時間外勤務手当', '深夜勤務手当']),
-      tax: value(['所得税', '住民税', '課税対象額', '控除合計']),
+      tax: Math.max(value(['所得税', '住民税', '課税対象額', '控除合計']), manualDeductions),
       social_insurance: value(['健康保険', '厚生年金', '雇用保険', '介護保険', '社会保険料']),
-      net_pay: value(['差引支給額', '手取り額', '支給合計', '振込金額'], 'max'),
+      net_pay: Math.max(value(['差引支給額', '手取り額', '支給合計', '振込金額'], 'max'), manualEarnings - manualDeductions),
     }
-  }, [details])
+  }, [detailKinds, details])
 
   const accountOptions = accounts.map((account) => ({ value: account.id, label: account.name }))
   const detailEntries = Object.entries(details)
@@ -168,8 +226,14 @@ export default function SalaryPage() {
       }
 
       const parsed = response.data
+      const normalizedDetails = normalizeDetails(parsed.details || {})
+      const inferredKinds = Object.fromEntries(
+        Object.keys(normalizedDetails).map((key) => [key, inferDetailKind(key)])
+      ) as Record<string, DetailKind>
+
       setResult(parsed)
-      setDetails(normalizeDetails(parsed.details || {}))
+      setDetails(normalizedDetails)
+      setDetailKinds(inferredKinds)
       setDate(parsed.month || '')
 
       notifications.update({
@@ -237,8 +301,25 @@ export default function SalaryPage() {
     setDetails((prev) => ({ ...prev, [key]: Number(value) || 0 }))
   }
 
+  const updateDetailKind = (key: string, value: DetailKind) => {
+    setDetailKinds((prev) => ({
+      ...prev,
+      [key]: value,
+    }))
+  }
+
+  const cycleDetailKind = (key: string) => {
+    const currentKind = detailKinds[key] || 'reference'
+    updateDetailKind(key, getNextDetailKind(currentKind))
+  }
+
   const removeDetail = (key: string) => {
     setDetails((prev) => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+    setDetailKinds((prev) => {
       const next = { ...prev }
       delete next[key]
       return next
@@ -258,6 +339,7 @@ export default function SalaryPage() {
     }
 
     setDetails((prev) => ({ ...prev, [key]: 0 }))
+    setDetailKinds((prev) => ({ ...prev, [key]: 'reference' }))
     setNewFieldName('')
   }
 
@@ -267,6 +349,7 @@ export default function SalaryPage() {
     setDate('')
     setTargetAccountId(null)
     setNewFieldName('')
+    setDetailKinds({})
     if (pdfPreviewUrl) {
       URL.revokeObjectURL(pdfPreviewUrl)
       setPdfPreviewUrl(null)
@@ -323,7 +406,7 @@ export default function SalaryPage() {
           <Stack gap="xl">
             <Grid gutter="xl">
               <Grid.Col span={{ base: 12, md: 6 }}>
-                <Stack gap="xs">
+                <Stack gap="xs" style={{ position: 'sticky', top: 88 }}>
                   <Group justify="space-between" px="xs">
                     <Text size="xs" fw={800} c="dimmed" tt="uppercase">
                       PDFプレビュー
@@ -409,6 +492,9 @@ export default function SalaryPage() {
                       </SimpleGrid>
 
                       <Divider label="抽出項目の確認・修正" labelPosition="center" my="sm" />
+                      <Text size="xs" c="dimmed">
+                        現在は既知ラベル名から支給・控除を推定しています。曖昧な項目は下の区分で手動修正できます。
+                      </Text>
 
                       <Group align="flex-end" grow>
                         <TextInput
@@ -424,29 +510,61 @@ export default function SalaryPage() {
 
                       <ScrollArea h={320} offsetScrollbars>
                         <Stack gap="xs">
-                          {detailEntries.map(([key, value]) => (
-                            <Group key={key} justify="space-between" wrap="nowrap" gap="sm">
-                              <TextInput
-                                value={key}
-                                readOnly
-                                size="xs"
-                                styles={{ input: { fontWeight: 700 } }}
-                                style={{ flex: 1 }}
-                              />
-                              <NumberInput
-                                size="xs"
-                                w={140}
-                                value={value}
-                                onChange={(nextValue) => updateDetail(key, nextValue || 0)}
-                                hideControls
-                                prefix="¥ "
-                                styles={{ input: { fontWeight: 700, textAlign: 'right' } }}
-                              />
-                              <ActionIcon variant="light" color="red" onClick={() => removeDetail(key)} aria-label={`${key} を削除`}>
-                                <Trash2 size={16} />
-                              </ActionIcon>
-                            </Group>
-                          ))}
+                          {detailEntries.length > 0 && (
+                            <Table withTableBorder withColumnBorders striped highlightOnHover>
+                              <Table.Thead>
+                                <Table.Tr>
+                                  <Table.Th>項目名</Table.Th>
+                                  <Table.Th w={120}>区分</Table.Th>
+                                  <Table.Th w={140}>金額</Table.Th>
+                                  <Table.Th w={56}></Table.Th>
+                                </Table.Tr>
+                              </Table.Thead>
+                              <Table.Tbody>
+                                {detailEntries.map(([key, value]) => (
+                                  <Table.Tr key={key}>
+                                    <Table.Td>
+                                      <Text size="sm" fw={700}>
+                                        {key}
+                                      </Text>
+                                    </Table.Td>
+                                    <Table.Td>
+                                      <Button
+                                        size="xs"
+                                        variant="light"
+                                        fullWidth
+                                        onClick={() => cycleDetailKind(key)}
+                                        styles={{
+                                          root: {
+                                            color: DETAIL_KIND_META[detailKinds[key] || 'reference'].color,
+                                            backgroundColor: DETAIL_KIND_META[detailKinds[key] || 'reference'].background,
+                                            border: `1px solid ${DETAIL_KIND_META[detailKinds[key] || 'reference'].border}`,
+                                          },
+                                        }}
+                                      >
+                                        {DETAIL_KIND_META[detailKinds[key] || 'reference'].label}
+                                      </Button>
+                                    </Table.Td>
+                                    <Table.Td>
+                                      <NumberInput
+                                        size="xs"
+                                        value={value}
+                                        onChange={(nextValue) => updateDetail(key, nextValue || 0)}
+                                        hideControls
+                                        prefix="¥ "
+                                        styles={{ input: { fontWeight: 700, textAlign: 'right' } }}
+                                      />
+                                    </Table.Td>
+                                    <Table.Td>
+                                      <ActionIcon variant="light" color="red" onClick={() => removeDetail(key)} aria-label={`${key} を削除`}>
+                                        <Trash2 size={16} />
+                                      </ActionIcon>
+                                    </Table.Td>
+                                  </Table.Tr>
+                                ))}
+                              </Table.Tbody>
+                            </Table>
+                          )}
                           {detailEntries.length === 0 && (
                             <Text size="sm" c="dimmed" ta="center" py="md">
                               抽出項目がありません。必要な項目を手動で追加してください。
