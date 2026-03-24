@@ -60,34 +60,34 @@ def extract_details(text: str) -> dict[str, str]:
     pending_label: Optional[str] = None
 
     for raw_line in text.splitlines():
-      line = normalize_text(raw_line)
-      if not line:
-          continue
+        line = normalize_text(raw_line)
+        if not line:
+            continue
 
-      if pending_label and NUMBER_ONLY_PATTERN.match(line):
-          details[pending_label] = clean_number(line)
-          pending_label = None
-          continue
+        if pending_label and NUMBER_ONLY_PATTERN.match(line):
+            details[pending_label] = clean_number(line)
+            pending_label = None
+            continue
 
-      for label, number in INLINE_NUMBER_PATTERN.findall(line):
-          normalized_label = clean_label(label)
-          if is_valid_label(normalized_label):
-              details[normalized_label] = clean_number(number)
+        for label, number in INLINE_NUMBER_PATTERN.findall(line):
+            normalized_label = clean_label(label)
+            if is_valid_label(normalized_label):
+                details[normalized_label] = clean_number(number)
 
-      trailing = TRAILING_NUMBER_PATTERN.match(line)
-      if trailing:
-          normalized_label = clean_label(trailing.group(1))
-          if is_valid_label(normalized_label):
-              details[normalized_label] = clean_number(trailing.group(2))
-              pending_label = None
-              continue
+        trailing = TRAILING_NUMBER_PATTERN.match(line)
+        if trailing:
+            normalized_label = clean_label(trailing.group(1))
+            if is_valid_label(normalized_label):
+                details[normalized_label] = clean_number(trailing.group(2))
+                pending_label = None
+                continue
 
-      if line.endswith(":") or line.endswith("："):
-          normalized_label = clean_label(line[:-1])
-          pending_label = normalized_label if is_valid_label(normalized_label) else None
-          continue
+        if line.endswith(":") or line.endswith("："):
+            normalized_label = clean_label(line[:-1])
+            pending_label = normalized_label if is_valid_label(normalized_label) else None
+            continue
 
-      pending_label = None
+        pending_label = None
 
     return details
 
@@ -118,27 +118,21 @@ class handler(BaseHTTPRequestHandler):
             body = self.rfile.read(content_length)
 
             if not body:
-                self.send_response(400)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(json.dumps({"success": False, "error": "NO_FILE_PROVIDED"}).encode("utf-8"))
+                self._json_response(400, {"success": False, "error": "NO_FILE_PROVIDED"})
                 return
 
             result = parse_pdf_bytes(body, file_name)
-
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.end_headers()
-            self.wfile.write(json.dumps({"success": True, "data": result}, ensure_ascii=False).encode("utf-8"))
+            self._json_response(200, {"success": True, "data": result})
         except ValueError as error:
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.end_headers()
-            self.wfile.write(json.dumps({"success": False, "error": str(error)}, ensure_ascii=False).encode("utf-8"))
+            self._json_response(200, {"success": False, "error": str(error)})
         except Exception as error:
-            self.send_response(500)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.end_headers()
-            self.wfile.write(
-                json.dumps({"success": False, "error": f"UNEXPECTED_PAYROLL_ERROR:{error}"}, ensure_ascii=False).encode("utf-8")
-            )
+            self._json_response(500, {"success": False, "error": f"UNEXPECTED_PAYROLL_ERROR:{error}"})
+
+    def do_GET(self):
+        self._json_response(200, {"ok": True, "service": "payroll-parse"})
+
+    def _json_response(self, status: int, payload: dict):
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))

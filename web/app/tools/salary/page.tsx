@@ -60,8 +60,8 @@ function getFriendlyPayrollErrorMessage(error: unknown) {
   if (message.includes('NO_FILE_PROVIDED')) {
     return 'PDF ファイルを選択してください。'
   }
-  if (message.includes('PAYROLL_API_HOST_NOT_FOUND')) {
-    return '給与明細解析APIの呼び出し先を判定できませんでした。'
+  if (message.includes('PAYROLL_PARSE_API_URL_NOT_CONFIGURED')) {
+    return '給与明細解析APIのURLが設定されていません。PAYROLL_PARSE_API_URL を確認してください。'
   }
   if (message.includes('PAYROLL_API_FETCH_FAILED:')) {
     return message.replace('PAYROLL_API_FETCH_FAILED:', '給与明細解析APIの呼び出しに失敗しました: ')

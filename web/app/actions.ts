@@ -2,7 +2,6 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import { headers } from 'next/headers'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { SCRAPER_JOB_CONFIG_MAP } from '@/lib/jobs/config'
 import { execFile } from 'child_process'
@@ -83,28 +82,11 @@ function getPayrollPythonCandidates(): CommandCandidate[] {
   return candidates
 }
 
-function getPayrollParseApiUrl(forwardedProto?: string | null, forwardedHost?: string | null, host?: string | null) {
+function getPayrollParseApiUrl() {
   const explicitUrl = process.env.PAYROLL_PARSE_API_URL?.trim()
   if (explicitUrl) {
     return explicitUrl
   }
-
-  const publicSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim()
-  if (publicSiteUrl) {
-    return `${publicSiteUrl.replace(/\/$/, '')}/api/payroll_parse`
-  }
-
-  const vercelUrl = process.env.VERCEL_URL?.trim()
-  if (vercelUrl) {
-    return `https://${vercelUrl.replace(/\/$/, '')}/api/payroll_parse`
-  }
-
-  const resolvedHost = forwardedHost || host
-  if (resolvedHost) {
-    const protocol = forwardedProto || 'https'
-    return `${protocol}://${resolvedHost}/api/payroll_parse`
-  }
-
   return null
 }
 
@@ -1113,15 +1095,10 @@ export async function analyzePayrollPdfVercel(formData: FormData) {
 
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
-    const requestHeaders = await headers()
-    const apiUrl = getPayrollParseApiUrl(
-      requestHeaders.get('x-forwarded-proto'),
-      requestHeaders.get('x-forwarded-host'),
-      requestHeaders.get('host')
-    )
+    const apiUrl = getPayrollParseApiUrl()
 
     if (!apiUrl) {
-      return { success: false as const, error: 'PAYROLL_API_HOST_NOT_FOUND' }
+      return { success: false as const, error: 'PAYROLL_PARSE_API_URL_NOT_CONFIGURED' }
     }
 
     const response = await fetch(apiUrl, {
