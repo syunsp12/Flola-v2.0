@@ -1,48 +1,53 @@
 'use client'
 
 import { useState } from 'react'
-import { login } from './actions'
-import { 
-  Paper, 
-  TextInput, 
-  PasswordInput, 
-  Button, 
-  Title, 
-  Text, 
-  Container, 
-  ThemeIcon,
+import { useRouter } from 'next/navigation'
+import {
+  Button,
+  Center,
+  Container,
+  Paper,
+  PasswordInput,
   Stack,
-  Center
-} from "@mantine/core"
-import { LockKeyhole, Mail, Lock } from 'lucide-react'
+  Text,
+  TextInput,
+  ThemeIcon,
+  Title,
+} from '@mantine/core'
 import { notifications } from '@mantine/notifications'
+import { Lock, LockKeyhole, Mail } from 'lucide-react'
+import { login } from './actions'
 
 export default function LoginPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
     setLoading(true)
 
-    const formData = new FormData(e.currentTarget)
-    
+    const formData = new FormData(event.currentTarget)
+
     try {
       const result = await login(formData)
-      
+
       if (result?.error) {
         notifications.show({
-          title: 'ログイン失敗',
+          title: 'ログインに失敗しました',
           message: result.error,
-          color: 'red'
+          color: 'red',
         })
         setLoading(false)
+        return
       }
+
+      router.push('/')
     } catch (error) {
       console.error(error)
       notifications.show({
-        title: 'エラー',
-        message: '予期せぬエラーが発生しました',
-        color: 'red'
+        title: '不明なエラー',
+        message: 'ログイン処理で予期しないエラーが発生しました。',
+        color: 'red',
       })
       setLoading(false)
     }
@@ -56,18 +61,18 @@ export default function LoginPage() {
             <LockKeyhole size={30} />
           </ThemeIcon>
         </Center>
-        
+
         <Title order={2} ta="center" mt="md" mb="xs">
-          Welcome Back
+          ログイン
         </Title>
         <Text c="dimmed" size="sm" ta="center" mb="xl">
-          Flola v2 にログインしてください
+          Flola にサインインして家計データを確認します
         </Text>
 
         <form onSubmit={handleSubmit}>
           <Stack gap="md">
             <TextInput
-              label="Email"
+              label="メールアドレス"
               name="email"
               placeholder="your@email.com"
               leftSection={<Mail size={16} />}
@@ -75,20 +80,14 @@ export default function LoginPage() {
               autoComplete="email"
             />
             <PasswordInput
-              label="Password"
+              label="パスワード"
               name="password"
-              placeholder="Your password"
+              placeholder="パスワードを入力"
               leftSection={<Lock size={16} />}
               required
               autoComplete="current-password"
             />
-            <Button 
-              type="submit" 
-              fullWidth 
-              mt="md" 
-              loading={loading}
-              size="md"
-            >
+            <Button type="submit" fullWidth mt="md" loading={loading} size="md">
               ログイン
             </Button>
           </Stack>

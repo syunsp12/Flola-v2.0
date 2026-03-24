@@ -1,41 +1,34 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
-import { 
-  Button, 
-  Text, 
-  Stack, 
-  Group, 
-  NumberInput, 
-  TextInput, 
-  Divider, 
-  Box, 
-  Paper, 
-  ActionIcon, 
-  Badge, 
-  Grid, 
-  SimpleGrid, 
-  Image, 
-  Modal, 
+import { useEffect, useMemo, useState } from 'react'
+import {
+  ActionIcon,
+  Badge,
+  Box,
+  Button,
+  Divider,
+  Grid,
+  Group,
+  Image,
+  Modal,
+  NumberInput,
+  Paper,
   ScrollArea,
-  Select
-} from "@mantine/core"
+  Select,
+  SimpleGrid,
+  Stack,
+  Text,
+  TextInput,
+} from '@mantine/core'
 import { Dropzone, PDF_MIME_TYPE } from '@mantine/dropzone'
-import { 
-  FileText, 
-  X, 
-  Check, 
-  ArrowLeft, 
-  CalendarDays,
-  ZoomIn,
-} from 'lucide-react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { useDisclosure } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
-import { analyzePayrollPdf, saveSalarySlip, getAccountsWithBalance } from '@/app/actions'
-import { PageHeader } from '@/components/layout/page-header'
+import { ArrowLeft, CalendarDays, Check, FileText, X, ZoomIn } from 'lucide-react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { analyzePayrollPdf, getAccountsWithBalance, saveSalarySlip } from '@/app/actions'
 import { PageContainer } from '@/components/layout/page-container'
+import { PageHeader } from '@/components/layout/page-header'
 
 type PayrollParseResult = {
   month?: string
@@ -49,103 +42,170 @@ type AccountOption = {
   name: string
 }
 
+function normalizeDetails(input: Record<string, unknown>) {
+  const normalized: Record<string, number> = {}
+  for (const [key, value] of Object.entries(input)) {
+    normalized[key] = Number(value) || 0
+  }
+  return normalized
+}
+
+function getFriendlyPayrollErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : 'UNKNOWN_ERROR'
+
+  if (message.includes('PARSER_SCRIPT_NOT_FOUND')) {
+    return '給与明細の解析スクリプトが見つかりません。サーバー設定を確認してください。'
+  }
+  if (message.includes('PYTHON_NOT_FOUND')) {
+    return '給与明細解析に必要な Python 実行環境が見つかりません。'
+  }
+  if (message.includes('PARSER_EXECUTION_FAILED')) {
+    return '給与明細の解析処理に失敗しました。PDF の内容または解析環境を確認してください。'
+  }
+  if (message.includes('PARSER_OUTPUT_INVALID_JSON')) {
+    return '給与明細の解析結果を読み取れませんでした。別の PDF で再度お試しください。'
+  }
+
+  return message
+}
+
+function formatCurrency(value: number) {
+  return `¥ ${value.toLocaleString()}`
+}
+
 export default function SalaryPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<PayrollParseResult | null>(null)
-  const [previewOpened, { open: openPreview, close: closePreview }] = useDisclosure(false)
-  const [accounts, setAccounts] = useState<AccountOption[]>([])
-  const [targetAccountId, setTargetAccountId] = useState<string | null>(null)
-
-  // 口座一覧を取得
-  useEffect(() => {
-    getAccountsWithBalance().then(setAccounts)
-  }, [])
-
-  // 1. 詳細データのステート
   const [details, setDetails] = useState<Record<string, number>>({})
   const [date, setDate] = useState('')
+  const [accounts, setAccounts] = useState<AccountOption[]>([])
+  const [targetAccountId, setTargetAccountId] = useState<string | null>(null)
+  const [previewOpened, { open: openPreview, close: closePreview }] = useDisclosure(false)
 
-  // 2. 詳細からサマリーを自動計算するロジック
+  useEffect(() => {
+    getAccountsWithBalance()
+      .then((data) => setAccounts(data.map((account) => ({ id: account.id, name: account.name }))))
+      .catch((error) => {
+        console.error(error)
+        notifications.show({
+          title: '口座の読み込みに失敗しました',
+          message: '振込先口座の一覧を取得できませんでした。',
+          color: 'red',
+        })
+      })
+  }, [])
+
   const summary = useMemo(() => {
-    const num = (key: string) => details[key] || 0
-    
-    const basePayKeys = ['基本給', '本給', '月給']
-    const overtimeKeys = ['時間外手当', '残業手当', '深夜手当', '休日手当', '時間外割増', '深夜割増']
-    const taxKeys = ['所得税', '住民税', '復興特別所得税', '県民税', '市民税']
-    const insuranceKeys = ['健康保険', '厚生年金', '雇用保険', '介護保険', '健康保険料', '厚生年金保険料', '雇用保険料']
-    const netPayKeys = ['差引支給額', '差引支給金', '銀行振込(一般)', '振込額', '実支給額']
+    const value = (keys: string[], mode: 'sum' | 'max' = 'sum') => {
+      const values = keys.map((key) => details[key] || 0)
+      return mode === 'max' ? Math.max(0, ...values) : values.reduce((sum, amount) => sum + amount, 0)
+    }
 
     return {
-      base_pay: basePayKeys.reduce((max, key) => Math.max(max, num(key)), 0),
-      overtime_pay: overtimeKeys.reduce((sum, key) => sum + num(key), 0),
-      tax: taxKeys.reduce((sum, key) => sum + num(key), 0),
-      social_insurance: insuranceKeys.reduce((sum, key) => sum + num(key), 0),
-      net_pay: netPayKeys.reduce((max, key) => Math.max(max, num(key)), 0)
+      base_pay: value(['基本給', '本給', '月給'], 'max'),
+      overtime_pay: value(['時間外手当', '残業手当', '深夜手当', '休日手当', '時間外勤務手当', '深夜勤務手当']),
+      tax: value(['所得税', '住民税', '課税対象額', '控除合計']),
+      social_insurance: value(['健康保険', '厚生年金', '雇用保険', '介護保険', '社会保険料']),
+      net_pay: value(['差引支給額', '手取り額', '支給合計', '振込金額'], 'max'),
     }
   }, [details])
+
+  const accountOptions = accounts.map((account) => ({ value: account.id, label: account.name }))
 
   const handleFileUpload = async (files: File[]) => {
     const file = files[0]
     if (!file) return
 
     setLoading(true)
-    const toastId = 'analyzing-toast'
-    notifications.show({ id: toastId, loading: true, message: 'PDFを解析中...', autoClose: false, withCloseButton: false })
+    const toastId = 'salary-analysis'
+    notifications.show({
+      id: toastId,
+      loading: true,
+      title: '給与明細を解析しています',
+      message: 'PDF の内容を読み取り中です。',
+      autoClose: false,
+      withCloseButton: false,
+    })
 
     try {
       const data = new FormData()
       data.append('file', file)
-      const res = await analyzePayrollPdf(data) as PayrollParseResult
-      
-      const rawDetails = res.details || {}
-      const numericDetails: Record<string, number> = {}
-      Object.entries(rawDetails).forEach(([k, v]) => {
-        numericDetails[k] = Number(v) || 0
+      const parsed = (await analyzePayrollPdf(data)) as PayrollParseResult
+      const normalizedDetails = normalizeDetails(parsed.details || {})
+
+      setResult(parsed)
+      setDetails(normalizedDetails)
+      setDate(parsed.month || '')
+
+      notifications.update({
+        id: toastId,
+        loading: false,
+        title: '解析が完了しました',
+        message: '内容を確認して保存できます。',
+        color: 'green',
+        icon: <Check size={18} />,
+        autoClose: 2000,
       })
-
-      setResult(res)
-      setDetails(numericDetails)
-      setDate(res.month || '')
-
-      notifications.update({ id: toastId, loading: false, message: '解析が完了しました', color: 'green', icon: <Check size={18} />, autoClose: 2000 })
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : '解析に失敗しました'
-      notifications.update({ id: toastId, loading: false, message, color: 'red', icon: <X size={18} />, autoClose: 3000 })
+    } catch (error) {
+      notifications.update({
+        id: toastId,
+        loading: false,
+        title: '解析に失敗しました',
+        message: getFriendlyPayrollErrorMessage(error),
+        color: 'red',
+        icon: <X size={18} />,
+        autoClose: 5000,
+      })
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const handleSave = async () => {
     if (!targetAccountId) {
-      notifications.show({ message: '入金先口座を選択してください', color: 'red' })
+      notifications.show({
+        title: '振込先口座を選択してください',
+        message: '給与が入金される口座を指定してください。',
+        color: 'red',
+      })
       return
     }
-    if (loading) return
+
     setLoading(true)
     try {
       await saveSalarySlip({
         ...summary,
         date,
         to_account_id: targetAccountId,
-        details: details
+        details,
       })
-      notifications.show({ title: 'Success', message: '給与明細を登録しました', color: 'green' })
+
+      notifications.show({
+        title: '保存しました',
+        message: '給与明細を収入データとして登録しました。',
+        color: 'green',
+      })
       router.push('/analyze')
-    } catch (e: unknown) {
-      console.error("Save error:", e)
-      notifications.show({ title: 'Error', message: '保存に失敗しました', color: 'red' })
+    } catch (error) {
+      console.error(error)
+      notifications.show({
+        title: '保存に失敗しました',
+        message: error instanceof Error ? error.message : '給与明細の保存中に不明なエラーが発生しました。',
+        color: 'red',
+      })
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
-  const updateDetail = (key: string, value: number) => {
-    setDetails(prev => ({ ...prev, [key]: value }))
+  const updateDetail = (key: string, value: string | number) => {
+    setDetails((prev) => ({ ...prev, [key]: Number(value) || 0 }))
   }
 
   return (
     <>
-      <PageHeader title="給与明細解析" subtitle="PDFから項目を自動抽出">
+      <PageHeader title="給与明細分析" subtitle="PDF を解析して収入データとして登録します">
         <Link href="/admin">
           <ActionIcon variant="light" size="2rem">
             <ArrowLeft size={18} />
@@ -158,54 +218,90 @@ export default function SalaryPage() {
           <Stack gap="xl">
             <Box>
               <Text size="sm" c="dimmed" mb="md">
-                給与明細のPDFをアップロードしてください。
+                給与明細の PDF をアップロードすると、支給額や控除額を自動で抽出します。
               </Text>
-              <Dropzone onDrop={handleFileUpload} accept={PDF_MIME_TYPE} maxSize={5 * 1024 ** 2} loading={loading} radius="xl" styles={{ root: { border: '2px dashed var(--mantine-color-gray-3)', backgroundColor: 'var(--mantine-color-gray-0)' } }}>
+              <Dropzone
+                onDrop={handleFileUpload}
+                accept={PDF_MIME_TYPE}
+                maxSize={10 * 1024 ** 2}
+                loading={loading}
+                radius="xl"
+                styles={{
+                  root: {
+                    border: '2px dashed var(--mantine-color-gray-3)',
+                    backgroundColor: 'var(--mantine-color-gray-0)',
+                  },
+                }}
+              >
                 <Stack align="center" gap="sm" py="xl">
-                  <Dropzone.Idle><FileText size={50} color="var(--mantine-color-dimmed)" /></Dropzone.Idle>
-                  <Box style={{ textAlign: 'center' }}>
-                    <Text size="lg" fw={700}>PDFファイルをドロップ</Text>
-                    <Text size="sm" c="dimmed" mt={7}>またはクリックして選択</Text>
+                  <Dropzone.Idle>
+                    <FileText size={48} color="var(--mantine-color-dimmed)" />
+                  </Dropzone.Idle>
+                  <Box ta="center">
+                    <Text size="lg" fw={700}>
+                      PDF ファイルをドロップ
+                    </Text>
+                    <Text size="sm" c="dimmed" mt={7}>
+                      またはクリックしてファイルを選択してください
+                    </Text>
                   </Box>
                 </Stack>
               </Dropzone>
             </Box>
           </Stack>
         ) : (
-          <Stack gap="xl" className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <Stack gap="xl">
             <Grid gutter="xl">
-              {/* 左側: PDFスナップショット (拡大機能付き) */}
               <Grid.Col span={{ base: 12, md: 6 }}>
                 <Stack gap="xs">
                   <Group justify="space-between" px="xs">
-                    <Text size="xs" fw={800} c="dimmed" tt="uppercase">PDF Snapshot</Text>
+                    <Text size="xs" fw={800} c="dimmed" tt="uppercase">
+                      PDF プレビュー
+                    </Text>
                     <Button variant="subtle" size="compact-xs" leftSection={<ZoomIn size={12} />} onClick={openPreview}>
-                      大きく表示
+                      拡大表示
                     </Button>
                   </Group>
-                  <Paper radius="28px" withBorder shadow="sm" style={{ overflow: 'hidden', cursor: 'zoom-in' }} onClick={openPreview}>
-                    <Image src={result.snapshot} alt="Payroll PDF Snapshot" />
+                  <Paper
+                    radius="28px"
+                    withBorder
+                    shadow="sm"
+                    style={{ overflow: 'hidden', cursor: 'zoom-in' }}
+                    onClick={openPreview}
+                  >
+                    <Image src={result.snapshot} alt="給与明細プレビュー" />
                   </Paper>
                 </Stack>
               </Grid.Col>
 
-              {/* 右側: 抽出データ確認・修正 */}
               <Grid.Col span={{ base: 12, md: 6 }}>
                 <Stack gap="md">
-                  <Text size="xs" fw={800} c="dimmed" tt="uppercase" px="xs">Extracted Data</Text>
+                  <Text size="xs" fw={800} c="dimmed" tt="uppercase" px="xs">
+                    抽出結果
+                  </Text>
                   <Paper p="xl" radius="28px" withBorder shadow="sm">
                     <Group justify="space-between" mb="xl">
-                      <Text fw={900} size="lg">解析結果の確認</Text>
-                      <Badge size="lg" variant="light" color="green">{result.type}</Badge>
+                      <Text fw={900} size="lg">
+                        解析済みデータ
+                      </Text>
+                      <Badge size="lg" variant="light" color="green">
+                        {result.type || '給与明細'}
+                      </Badge>
                     </Group>
 
                     <Stack gap="md">
-                      <TextInput label="支給日 (YYYY-MM-DD)" leftSection={<CalendarDays size={16} />} value={date} onChange={(e) => setDate(e.currentTarget.value)} />
-                      
+                      <TextInput
+                        label="支給日"
+                        placeholder="YYYY-MM-DD"
+                        leftSection={<CalendarDays size={16} />}
+                        value={date}
+                        onChange={(event) => setDate(event.currentTarget.value)}
+                      />
+
                       <Select
-                        label="入金先口座"
-                        placeholder="給与が振り込まれる口座を選択"
-                        data={accounts.map(a => ({ value: a.id, label: a.name }))}
+                        label="振込先口座"
+                        placeholder="給与が入金される口座を選択"
+                        data={accountOptions}
                         value={targetAccountId}
                         onChange={setTargetAccountId}
                         required
@@ -214,21 +310,41 @@ export default function SalaryPage() {
 
                       <SimpleGrid cols={2} spacing="md">
                         <Box p="md" bg="gray.0" style={{ borderRadius: '12px' }}>
-                          <Text size="10px" fw={800} c="dimmed">手取り額</Text>
-                          <Text fw={900} size="xl">¥{summary.net_pay.toLocaleString()}</Text>
+                          <Text size="10px" fw={800} c="dimmed">
+                            手取り額
+                          </Text>
+                          <Text fw={900} size="xl">
+                            {formatCurrency(summary.net_pay)}
+                          </Text>
                         </Box>
                         <Box p="md" bg="indigo.0" style={{ borderRadius: '12px' }}>
-                          <Text size="10px" fw={800} c="indigo.6">基本給</Text>
-                          <Text fw={900} size="xl">¥{summary.base_pay.toLocaleString()}</Text>
+                          <Text size="10px" fw={800} c="indigo.6">
+                            基本給
+                          </Text>
+                          <Text fw={900} size="xl">
+                            {formatCurrency(summary.base_pay)}
+                          </Text>
                         </Box>
                       </SimpleGrid>
-                      <Divider label="全項目を微調整" labelPosition="center" my="sm" />
-                      <ScrollArea h={300} offsetScrollbars>
+
+                      <Divider label="抽出項目の確認・補正" labelPosition="center" my="sm" />
+
+                      <ScrollArea h={320} offsetScrollbars>
                         <Stack gap="xs">
-                          {Object.entries(details).map(([key, val]) => (
+                          {Object.entries(details).map(([key, value]) => (
                             <Group key={key} justify="space-between" wrap="nowrap" gap="sm">
-                              <Text size="xs" fw={700} style={{ flex: 1 }}>{key}</Text>
-                              <NumberInput size="xs" w={120} value={val} onChange={(newVal) => updateDetail(key, Number(newVal))} hideControls prefix="¥" styles={{ input: { fontWeight: 700, textAlign: 'right' } }} />
+                              <Text size="xs" fw={700} style={{ flex: 1 }}>
+                                {key}
+                              </Text>
+                              <NumberInput
+                                size="xs"
+                                w={140}
+                                value={value}
+                                onChange={(nextValue) => updateDetail(key, nextValue || 0)}
+                                hideControls
+                                prefix="¥ "
+                                styles={{ input: { fontWeight: 700, textAlign: 'right' } }}
+                              />
                             </Group>
                           ))}
                         </Stack>
@@ -236,24 +352,11 @@ export default function SalaryPage() {
                     </Stack>
 
                     <Group grow mt="xl">
-                      <Button 
-                        variant="light" 
-                        color="gray" 
-                        onClick={() => setResult(null)} 
-                        radius="md"
-                        disabled={loading}
-                      >
+                      <Button variant="light" color="gray" onClick={() => setResult(null)} disabled={loading}>
                         やり直す
                       </Button>
-                      <Button 
-                        onClick={handleSave} 
-                        loading={loading} 
-                        radius="md" 
-                        leftSection={<Check size={18} />}
-                        color={!targetAccountId ? 'gray' : 'indigo'}
-                        title={!targetAccountId ? '入金先口座を選択してください' : ''}
-                      >
-                        {targetAccountId ? '確定して保存' : '口座を選択してください'}
+                      <Button onClick={handleSave} loading={loading} leftSection={<Check size={18} />} disabled={!targetAccountId}>
+                        保存する
                       </Button>
                     </Group>
                   </Paper>
@@ -264,11 +367,14 @@ export default function SalaryPage() {
         )}
       </PageContainer>
 
-      {/* 拡大プレビュー用モーダル */}
       <Modal opened={previewOpened} onClose={closePreview} fullScreen radius={0} transitionProps={{ transition: 'fade', duration: 200 }}>
         <ScrollArea h="100vh">
           <Box p="xl" style={{ display: 'flex', justifyContent: 'center' }}>
-            <Image src={result?.snapshot} alt="Full Preview" style={{ maxWidth: '100%', height: 'auto', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }} />
+            <Image
+              src={result?.snapshot}
+              alt="給与明細の全画面プレビュー"
+              style={{ maxWidth: '100%', height: 'auto', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}
+            />
           </Box>
         </ScrollArea>
       </Modal>

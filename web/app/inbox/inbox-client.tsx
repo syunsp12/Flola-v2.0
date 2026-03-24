@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useCallback, useEffect, useState } from 'react'
-import { getTransactions, updateTransaction, applyAiCategories, createTransaction, requestHistoryFetch, deleteTransaction, revertTransactionStatus } from '@/app/actions'
+import { getTransactionsPage, updateTransaction, applyAiCategories, createTransaction, requestHistoryFetch, deleteTransaction, revertTransactionStatus } from '@/app/actions'
 import {
   Card,
   Text,
@@ -526,13 +526,17 @@ interface InboxClientProps {
   initialCategories: Category[];
   initialAccounts: AccountOption[];
   initialStatus: 'pending' | 'confirmed';
+  initialHasMore: boolean;
+  pageSize: number;
 }
 
 export function InboxClient({
   initialTransactions,
   initialCategories,
   initialAccounts,
-  initialStatus
+  initialStatus,
+  initialHasMore,
+  pageSize
 }: InboxClientProps) {
   const [transactions, setTransactions] = useState<InboxTransaction[]>(initialTransactions)
   const [accounts] = useState<AccountOption[]>(initialAccounts)
@@ -543,6 +547,7 @@ export function InboxClient({
     initialAccounts.map((account) => ({ value: account.id, label: account.name }))
   )
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(initialHasMore)
   const [aiLoading, setAiLoading] = useState(false)
 
   const [activeTab, setActiveTab] = useState<InboxTab>(initialStatus)
@@ -561,19 +566,60 @@ export function InboxClient({
   const [historyRange, setHistoryRange] = useState<[Date | null, Date | null]>([null, null])
   const [isHistoryRequesting, setIsHistoryRequesting] = useState(false)
 
+  const loadMoreTransactions = useCallback(async (status: InboxTab, startOffset: number) => {
+    let offset = startOffset
+    let shouldContinue = true
+
+    while (shouldContinue) {
+      setLoadingMore(true)
+      try {
+        const page = await getTransactionsPage({
+          status,
+          limit: pageSize,
+          offset,
+        })
+
+        const items = (page.items || []) as InboxTransaction[]
+        if (items.length > 0) {
+          setTransactions((prev) => [...prev, ...items])
+          offset += items.length
+        }
+
+        shouldContinue = page.hasMore
+
+        if (page.hasMore) {
+          await new Promise((resolve) => setTimeout(resolve, 0))
+        }
+      } catch {
+        notifications.show({ title: 'Error', message: '追加データの取得に失敗しました', color: 'red' })
+        shouldContinue = false
+      } finally {
+        setLoadingMore(false)
+      }
+    }
+  }, [pageSize])
+
   const loadData = useCallback(async () => {
     setLoading(true)
+    setLoadingMore(false)
     try {
-      // サーバーアクションを呼び出してデータを更新
-      const transData = await getTransactions({
-        status: activeTab
+      const page = await getTransactionsPage({
+        status: activeTab,
+        limit: pageSize,
+        offset: 0,
       })
-      setTransactions(transData || [])
+
+      const items = (page.items || []) as InboxTransaction[]
+      setTransactions(items)
+
+      if (page.hasMore) {
+        void loadMoreTransactions(activeTab, items.length)
+      }
     } catch {
       notifications.show({ title: 'Error', message: 'データの取得に失敗しました', color: 'red' })
     }
     setLoading(false)
-  }, [activeTab])
+  }, [activeTab, loadMoreTransactions, pageSize])
 
   // タブ切り替え時にデータを再取得
   useEffect(() => {
@@ -591,6 +637,12 @@ export function InboxClient({
       // ただし無限ループを防ぐため、initialTransactionsをセットするのはコンポーネントマウント時のみ。
     }
   }, [activeTab, initialStatus, loadData])
+
+  useEffect(() => {
+    if (activeTab === initialStatus && initialHasMore) {
+      void loadMoreTransactions(initialStatus, initialTransactions.length)
+    }
+  }, [activeTab, initialHasMore, initialStatus, initialTransactions.length, loadMoreTransactions])
 
   const handleAiPredict = async () => {
     setAiLoading(true)
@@ -781,6 +833,18 @@ export function InboxClient({
                     handleRevert={handleRevert}
                     handleDelete={handleDelete}
                   />
+                  {loadingMore && (
+                    <Stack gap="md">
+                      {[1, 2].map((i) => (
+                        <Card key={`pending-loading-${i}`} padding="md" radius="md" withBorder>
+                          <Skeleton h={20} w="30%" mb="sm" />
+                          <Skeleton h={30} w="60%" mb="xs" />
+                          <Skeleton h={15} w="80%" mb="md" />
+                          <Skeleton h={40} radius="md" />
+                        </Card>
+                      ))}
+                    </Stack>
+                  )}
                 </Stack>
               ) : loading ? (
                 <Stack gap="md">
@@ -800,17 +864,31 @@ export function InboxClient({
 
             <Tabs.Panel value="confirmed">
               {transactions.length > 0 ? (
-                <TransactionList
-                  transactions={transactions}
-                  categoryOptions={categoryOptions}
-                  accountOptions={accountOptions}
-                  accountsRaw={accounts}
-                  handleFieldChange={handleFieldChange}
-                  handleIgnore={handleIgnore}
-                  handleApprove={handleApprove}
-                  handleRevert={handleRevert}
-                  handleDelete={handleDelete}
-                />
+                <>
+                  <TransactionList
+                    transactions={transactions}
+                    categoryOptions={categoryOptions}
+                    accountOptions={accountOptions}
+                    accountsRaw={accounts}
+                    handleFieldChange={handleFieldChange}
+                    handleIgnore={handleIgnore}
+                    handleApprove={handleApprove}
+                    handleRevert={handleRevert}
+                    handleDelete={handleDelete}
+                  />
+                  {loadingMore && (
+                    <Stack gap="md">
+                      {[1, 2].map((i) => (
+                        <Card key={`confirmed-loading-${i}`} padding="md" radius="md" withBorder>
+                          <Skeleton h={20} w="30%" mb="sm" />
+                          <Skeleton h={30} w="60%" mb="xs" />
+                          <Skeleton h={15} w="80%" mb="md" />
+                          <Skeleton h={40} radius="md" />
+                        </Card>
+                      ))}
+                    </Stack>
+                  )}
+                </>
               ) : loading ? (
                 <Stack gap="md">
                   {[1, 2, 3].map((i) => (

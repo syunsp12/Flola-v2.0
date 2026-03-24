@@ -1,9 +1,9 @@
 'use client'
 
 import { Badge, Box, Card, Group, Image, Stack, Text, ThemeIcon } from '@mantine/core'
+import { format } from 'date-fns'
 import { TrendingDown, TrendingUp, Wallet } from 'lucide-react'
 import Link from 'next/link'
-import { format } from 'date-fns'
 import { getCardBrandLogo, getSmartIconUrl } from '@/lib/utils/icon-helper'
 
 type TransactionAccount = {
@@ -36,6 +36,10 @@ type DashboardData = {
   recentTransactions: RecentTransaction[]
 }
 
+function formatCurrency(value: number) {
+  return `¥ ${value.toLocaleString()}`
+}
+
 export function DashboardView({ data }: { data: DashboardData }) {
   return (
     <Stack gap="lg" pb="xl">
@@ -54,27 +58,27 @@ export function DashboardView({ data }: { data: DashboardData }) {
             <Group gap="xs" style={{ opacity: 0.9 }}>
               <Wallet size={18} />
               <Text size="sm" fw={600}>
-                Net Worth
+                純資産
               </Text>
             </Group>
           </Group>
 
           <Text fw={800} lh={1.1} style={{ fontSize: 32, letterSpacing: '-0.5px' }}>
-            ¥ {data.netWorth.toLocaleString()}
+            {formatCurrency(data.netWorth)}
           </Text>
 
           <Group grow mt="sm">
             <Box>
               <Text size="xs" c="indigo.1" fw={600}>
-                Assets
+                資産
               </Text>
-              <Text fw={700}>¥ {data.totalAssets.toLocaleString()}</Text>
+              <Text fw={700}>{formatCurrency(data.totalAssets)}</Text>
             </Box>
             <Box pl="md" style={{ borderLeft: '1px solid rgba(255,255,255,0.2)' }}>
               <Text size="xs" c="red.2" fw={600}>
-                Liabilities
+                負債
               </Text>
-              <Text fw={700}>-¥ {data.totalLiabilities.toLocaleString()}</Text>
+              <Text fw={700}>-{formatCurrency(data.totalLiabilities)}</Text>
             </Box>
           </Group>
         </Stack>
@@ -83,12 +87,12 @@ export function DashboardView({ data }: { data: DashboardData }) {
       <Card radius="md" p="md" withBorder>
         <Stack gap="sm">
           <Text size="sm" fw={700} c="dimmed" tt="uppercase">
-            Monthly Spending
+            今月の支出
           </Text>
-          <Text fw={700}>Total: ¥{data.currentMonthTotalExpense.toLocaleString()}</Text>
+          <Text fw={700}>合計: {formatCurrency(data.currentMonthTotalExpense)}</Text>
           {data.categoryRanking.length === 0 ? (
             <Text size="sm" c="dimmed">
-              No category data yet.
+              今月のカテゴリ別データはまだありません。
             </Text>
           ) : (
             data.categoryRanking.map((category, index) => (
@@ -108,7 +112,7 @@ export function DashboardView({ data }: { data: DashboardData }) {
                   </Text>
                 </Group>
                 <Text size="sm" fw={700}>
-                  ¥{category.value.toLocaleString()}
+                  {formatCurrency(category.value)}
                 </Text>
               </Group>
             ))
@@ -119,11 +123,11 @@ export function DashboardView({ data }: { data: DashboardData }) {
       <Card radius="md" p="md" withBorder>
         <Group justify="space-between" mb="sm">
           <Text size="sm" fw={700} c="dimmed" tt="uppercase">
-            Recent Activity
+            最近の取引
           </Text>
           <Link href="/inbox?status=all" style={{ textDecoration: 'none' }}>
             <Text size="xs" c="indigo" fw={600}>
-              View All
+              すべて見る
             </Text>
           </Link>
         </Group>
@@ -131,7 +135,7 @@ export function DashboardView({ data }: { data: DashboardData }) {
         <Stack gap="sm">
           {data.recentTransactions.length === 0 ? (
             <Text size="sm" c="dimmed">
-              No recent transactions.
+              最近の取引はまだありません。
             </Text>
           ) : (
             data.recentTransactions.map((transaction) => {
@@ -184,14 +188,15 @@ export function DashboardView({ data }: { data: DashboardData }) {
                           {format(new Date(transaction.date), 'MM/dd')}
                         </Text>
                         <Badge size="xs" variant="dot" color="gray">
-                          {category?.name || 'Uncategorized'}
+                          {category?.name || '未分類'}
                         </Badge>
                       </Group>
                     </Stack>
                   </Group>
 
                   <Text size="sm" fw={700} c={transaction.type === 'income' ? 'teal' : undefined}>
-                    {transaction.type === 'expense' ? '-' : '+'}¥{transaction.amount.toLocaleString()}
+                    {transaction.type === 'expense' ? '-' : '+'}
+                    {formatCurrency(transaction.amount)}
                   </Text>
                 </Group>
               )

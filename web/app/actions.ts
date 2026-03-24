@@ -9,6 +9,8 @@ type TransactionFilter = {
   status?: 'pending' | 'confirmed' | 'ignore' | 'all'
   startDate?: string
   endDate?: string
+  limit?: number
+  offset?: number
 }
 
 type TransactionUpdateInput = {
@@ -107,7 +109,11 @@ export async function getTransactions(filter: TransactionFilter = {}) {
   if (filter.endDate) {
     query = query.lte('date', filter.endDate)
   }
-  if (!filter.startDate && !filter.endDate) {
+  if (typeof filter.offset === 'number' && typeof filter.limit === 'number') {
+    query = query.range(filter.offset, filter.offset + filter.limit - 1)
+  } else if (typeof filter.limit === 'number') {
+    query = query.limit(filter.limit)
+  } else if (!filter.startDate && !filter.endDate) {
     query = query.limit(100)
   }
 
@@ -128,6 +134,20 @@ export async function getTransactions(filter: TransactionFilter = {}) {
   }))
 
   return mappedData
+}
+
+export async function getTransactionsPage(filter: TransactionFilter = {}) {
+  const limit = filter.limit ?? 20
+  const transactions = await getTransactions({
+    ...filter,
+    limit,
+    offset: filter.offset ?? 0,
+  })
+
+  return {
+    items: transactions,
+    hasMore: transactions.length === limit,
+  }
 }
 
 

@@ -1,14 +1,174 @@
 import { Box, Card, Group, Skeleton, Stack } from '@mantine/core'
+import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns'
 import { Suspense } from 'react'
 import { DashboardView } from '@/components/dashboard-view'
 import { PageContainer } from '@/components/layout/page-container'
 import { PageHeader } from '@/components/layout/page-header'
 import { createClient } from '@/utils/supabase/server'
-import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns'
 
 export const revalidate = 60
 
-async function getDashboardData() {
+type DashboardRpcResponse = {
+  netWorth?: number
+  totalAssets?: number
+  totalLiabilities?: number
+  monthlyFlowData?: { month: string; income: number; expense: number }[]
+  categoryRanking?: { name: string; value: number }[]
+  currentMonthTotalExpense?: number
+  recentTransactions?: {
+    id: string
+    type: 'income' | 'expense' | 'transfer'
+    description: string
+    date: string
+    amount: number
+    accounts?: { name?: string; icon_url?: string | null; card_brand?: string | null } | null
+    categories?: { name?: string } | null
+  }[]
+}
+
+type DashboardData = Required<DashboardRpcResponse>
+
+function emptyDashboardData(): DashboardData {
+  return {
+    netWorth: 0,
+    totalAssets: 0,
+    totalLiabilities: 0,
+    monthlyFlowData: [],
+    categoryRanking: [],
+    currentMonthTotalExpense: 0,
+    recentTransactions: [],
+  }
+}
+
+async function getDashboardDataFromTables(): Promise<DashboardData> {
+  const supabase = await createClient()
+  const now = new Date()
+  const monthStart = startOfMonth(now)
+  const monthEnd = endOfMonth(now)
+
+  const [accountsResult, balancesResult, currentMonthResult, recentTransactionsResult] = await Promise.all([
+    supabase.from('accounts').select('id, name, icon_url, card_brand, is_liability').order('id'),
+    supabase
+      .from('monthly_balances')
+      .select('account_id, amount, record_date')
+      .order('record_date', { ascending: false })
+      .limit(1000),
+    supabase
+      .from('transactions')
+      .select(
+        `
+          id,
+          type,
+          amount,
+          description,
+          date,
+          category_id,
+          user_category_id,
+          user_amount,
+          user_date,
+          user_description,
+          user_categories:categories!user_category_id(name),
+          categories!category_id(name)
+        `
+      )
+      .eq('status', 'confirmed')
+      .gte('date', monthStart.toISOString())
+      .lte('date', monthEnd.toISOString())
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('transactions')
+      .select(
+        `
+          id,
+          type,
+          amount,
+          description,
+          date,
+          user_amount,
+          user_date,
+          user_description,
+          accounts!from_account_id(name, icon_url, card_brand),
+          categories!category_id(name),
+          user_categories:categories!user_category_id(name)
+        `
+      )
+      .eq('status', 'confirmed')
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(8),
+  ])
+
+  if (accountsResult.error) throw new Error(accountsResult.error.message)
+  if (balancesResult.error) throw new Error(balancesResult.error.message)
+  if (currentMonthResult.error) throw new Error(currentMonthResult.error.message)
+  if (recentTransactionsResult.error) throw new Error(recentTransactionsResult.error.message)
+
+  const latestBalanceByAccount = new Map<string, number>()
+  for (const balance of balancesResult.data || []) {
+    if (!latestBalanceByAccount.has(balance.account_id)) {
+      latestBalanceByAccount.set(balance.account_id, Number(balance.amount) || 0)
+    }
+  }
+
+  let totalAssets = 0
+  let totalLiabilities = 0
+  for (const account of accountsResult.data || []) {
+    const amount = latestBalanceByAccount.get(account.id) || 0
+    if (account.is_liability) {
+      totalLiabilities += amount
+    } else {
+      totalAssets += amount
+    }
+  }
+
+  const categoryTotals = new Map<string, number>()
+  let currentMonthTotalExpense = 0
+  for (const transaction of currentMonthResult.data || []) {
+    const amount = transaction.user_amount !== null ? Number(transaction.user_amount) : Number(transaction.amount)
+    if (transaction.type !== 'expense') {
+      continue
+    }
+    currentMonthTotalExpense += amount
+    const rawCategory = transaction.user_category_id ? transaction.user_categories : transaction.categories
+    const category = Array.isArray(rawCategory) ? rawCategory[0] : rawCategory
+    const categoryName = category?.name || '未分類'
+    categoryTotals.set(categoryName, (categoryTotals.get(categoryName) || 0) + amount)
+  }
+
+  const categoryRanking = [...categoryTotals.entries()]
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 5)
+
+  const recentTransactions = (recentTransactionsResult.data || []).map((transaction) => {
+    const rawCategory = transaction.user_categories || transaction.categories
+    const category = Array.isArray(rawCategory) ? rawCategory[0] : rawCategory
+
+    return {
+      id: transaction.id,
+      type: transaction.type,
+      description:
+        transaction.user_description !== null ? transaction.user_description : transaction.description || '取引',
+      date: transaction.user_date !== null ? transaction.user_date : transaction.date,
+      amount: transaction.user_amount !== null ? Number(transaction.user_amount) : Number(transaction.amount),
+      accounts: Array.isArray(transaction.accounts) ? transaction.accounts[0] : transaction.accounts,
+      categories: category,
+    }
+  })
+
+  return {
+    netWorth: totalAssets - totalLiabilities,
+    totalAssets,
+    totalLiabilities,
+    monthlyFlowData: [],
+    categoryRanking,
+    currentMonthTotalExpense,
+    recentTransactions,
+  }
+}
+
+async function getDashboardData(): Promise<DashboardData> {
   const supabase = await createClient()
   const now = new Date()
   const sixMonthsAgo = startOfMonth(subMonths(now, 5)).toISOString()
@@ -21,27 +181,26 @@ async function getDashboardData() {
     p_current_month_start: currentMonthStart,
   })
 
-  if (error) {
-    console.error('Dashboard RPC Error:', error)
+  if (!error && data) {
+    const rpcData = data as DashboardRpcResponse
     return {
-      netWorth: 0,
-      totalAssets: 0,
-      totalLiabilities: 0,
-      monthlyFlowData: [],
-      categoryRanking: [],
-      currentMonthTotalExpense: 0,
-      recentTransactions: [],
+      netWorth: rpcData.netWorth || 0,
+      totalAssets: rpcData.totalAssets || 0,
+      totalLiabilities: rpcData.totalLiabilities || 0,
+      monthlyFlowData: rpcData.monthlyFlowData || [],
+      categoryRanking: rpcData.categoryRanking || [],
+      currentMonthTotalExpense: rpcData.currentMonthTotalExpense || 0,
+      recentTransactions: rpcData.recentTransactions || [],
     }
   }
 
-  return {
-    netWorth: data.netWorth || 0,
-    totalAssets: data.totalAssets || 0,
-    totalLiabilities: data.totalLiabilities || 0,
-    monthlyFlowData: data.monthlyFlowData || [],
-    categoryRanking: data.categoryRanking || [],
-    currentMonthTotalExpense: data.currentMonthTotalExpense || 0,
-    recentTransactions: data.recentTransactions || [],
+  console.error('Dashboard RPC Error:', error)
+
+  try {
+    return await getDashboardDataFromTables()
+  } catch (fallbackError) {
+    console.error('Dashboard fallback query error:', fallbackError)
+    return emptyDashboardData()
   }
 }
 
@@ -87,7 +246,7 @@ function DashboardFallback() {
 export default function DashboardPage() {
   return (
     <>
-      <PageHeader title="Dashboard" subtitle="Financial Overview" />
+      <PageHeader title="ホーム" subtitle="家計ダッシュボード" />
       <PageContainer>
         <Suspense fallback={<DashboardFallback />}>
           <DashboardContent />

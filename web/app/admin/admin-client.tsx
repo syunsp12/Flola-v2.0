@@ -85,7 +85,7 @@ interface AdminClientProps {
 }
 
 function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : 'Unexpected error'
+  return error instanceof Error ? error.message : '不明なエラーが発生しました'
 }
 
 function getJobBadgeColor(status: string) {
@@ -156,7 +156,7 @@ export function AdminClient({
       setCategories(categoriesData || [])
       setAssetGroups(assetGroupsData || [])
     } catch (error) {
-      notifications.show({ title: 'Error', message: getErrorMessage(error), color: 'red' })
+      notifications.show({ title: '読み込みに失敗しました', message: getErrorMessage(error), color: 'red' })
     } finally {
       setLoading(false)
     }
@@ -179,7 +179,7 @@ export function AdminClient({
 
   const handleSaveCategory = async () => {
     if (!catName.trim()) {
-      notifications.show({ message: 'Category name is required.', color: 'red' })
+      notifications.show({ message: 'カテゴリ名を入力してください。', color: 'red' })
       return
     }
 
@@ -191,10 +191,10 @@ export function AdminClient({
     try {
       if (editingCategory) {
         await updateCategory(editingCategory.id, catName, catType, keywords)
-        notifications.show({ message: 'Category updated.', color: 'green' })
+        notifications.show({ message: 'カテゴリを更新しました。', color: 'green' })
       } else {
         await createCategory(catName, catType, keywords)
-        notifications.show({ message: 'Category created.', color: 'green' })
+        notifications.show({ message: 'カテゴリを作成しました。', color: 'green' })
       }
       await loadData()
       closeCategoryModal()
@@ -204,11 +204,11 @@ export function AdminClient({
   }
 
   const handleDeleteCategory = async (id: number) => {
-    if (!confirm('Delete this category?')) return
+    if (!confirm('このカテゴリを削除しますか？')) return
 
     try {
       await deleteCategory(id)
-      notifications.show({ message: 'Category deleted.', color: 'gray' })
+      notifications.show({ message: 'カテゴリを削除しました。', color: 'gray' })
       await loadData()
     } catch (error) {
       notifications.show({ message: getErrorMessage(error), color: 'red' })
@@ -234,7 +234,7 @@ export function AdminClient({
 
   const handleSaveAssetGroup = async () => {
     if (!assetGroupId.trim() || !assetGroupName.trim()) {
-      notifications.show({ message: 'Asset group ID and name are required.', color: 'red' })
+      notifications.show({ message: '資産グループIDと表示名を入力してください。', color: 'red' })
       return
     }
 
@@ -245,7 +245,7 @@ export function AdminClient({
           color: assetGroupColor,
           sort_order: assetGroupOrder,
         })
-        notifications.show({ message: 'Asset group updated.', color: 'green' })
+        notifications.show({ message: '資産グループを更新しました。', color: 'green' })
       } else {
         await createAssetGroup({
           id: assetGroupId,
@@ -253,7 +253,7 @@ export function AdminClient({
           color: assetGroupColor,
           sort_order: assetGroupOrder,
         })
-        notifications.show({ message: 'Asset group created.', color: 'green' })
+        notifications.show({ message: '資産グループを作成しました。', color: 'green' })
       }
       await loadData()
       closeAssetGroupModal()
@@ -263,11 +263,11 @@ export function AdminClient({
   }
 
   const handleDeleteAssetGroup = async (id: string) => {
-    if (!confirm('Delete this asset group?')) return
+    if (!confirm('この資産グループを削除しますか？')) return
 
     try {
       await deleteAssetGroup(id)
-      notifications.show({ message: 'Asset group deleted.', color: 'gray' })
+      notifications.show({ message: '資産グループを削除しました。', color: 'gray' })
       await loadData()
     } catch (error) {
       notifications.show({ message: getErrorMessage(error), color: 'red' })
@@ -278,12 +278,12 @@ export function AdminClient({
     setSyncing((prev) => ({ ...prev, [jobId]: true }))
     try {
       await triggerJob(jobId)
-      notifications.show({ title: 'Success', message: 'Job triggered.', color: 'green' })
+      notifications.show({ title: '実行を開始しました', message: 'ジョブを起動しました。', color: 'green' })
       setTimeout(() => {
         void loadData()
       }, 5000)
     } catch (error) {
-      notifications.show({ title: 'Error', message: getErrorMessage(error), color: 'red' })
+      notifications.show({ title: 'ジョブの起動に失敗しました', message: getErrorMessage(error), color: 'red' })
     } finally {
       setSyncing((prev) => ({ ...prev, [jobId]: false }))
     }
@@ -292,21 +292,21 @@ export function AdminClient({
   return (
     <Tabs value={activeTab} onChange={setActiveTab} variant="pills">
       <PageHeader
-        title="Admin"
-        subtitle="Operations and configuration"
+        title="管理"
+        subtitle="運用と各種設定"
         tabs={
           <Tabs.List grow>
             <Tabs.Tab value="categories" leftSection={<Tag size={14} />}>
-              Categories
+              カテゴリ
             </Tabs.Tab>
             <Tabs.Tab value="tools" leftSection={<Wrench size={14} />}>
-              Tools
+              ツール
             </Tabs.Tab>
             <Tabs.Tab value="system" leftSection={<Activity size={14} />}>
-              System
+              システム
             </Tabs.Tab>
             <Tabs.Tab value="settings" leftSection={<User size={14} />}>
-              Settings
+              設定
             </Tabs.Tab>
           </Tabs.List>
         }
@@ -323,8 +323,8 @@ export function AdminClient({
               value={categoryView}
               onChange={(value) => setCategoryView(value as 'transactions' | 'assets')}
               data={[
-                { label: 'Transaction Categories', value: 'transactions' },
-                { label: 'Asset Groups', value: 'assets' },
+                { label: '取引カテゴリ', value: 'transactions' },
+                { label: '資産グループ', value: 'assets' },
               ]}
               fullWidth
             />
@@ -332,12 +332,12 @@ export function AdminClient({
             {categoryView === 'transactions' ? (
               <Stack gap="sm">
                 <Button leftSection={<Plus size={16} />} variant="light" onClick={() => handleOpenCategoryModal()}>
-                  New Category
+                  カテゴリを追加
                 </Button>
                 {categories.length === 0 ? (
                   <Card withBorder radius="md" p="lg">
                     <Text c="dimmed" ta="center">
-                      No categories found.
+                      カテゴリはまだ登録されていません。
                     </Text>
                   </Card>
                 ) : (
@@ -352,7 +352,7 @@ export function AdminClient({
                             </Badge>
                           </Group>
                           <Text size="sm" c="dimmed" lineClamp={2}>
-                            {category.keywords?.join(', ') || 'No keywords'}
+                              {category.keywords?.join(', ') || 'キーワード未設定'}
                           </Text>
                         </Stack>
                         <Group gap={4}>
@@ -371,12 +371,12 @@ export function AdminClient({
             ) : (
               <Stack gap="sm">
                 <Button leftSection={<Plus size={16} />} variant="light" onClick={() => handleOpenAssetGroupModal()}>
-                  New Asset Group
+                  資産グループを追加
                 </Button>
                 {assetGroups.length === 0 ? (
                   <Card withBorder radius="md" p="lg">
                     <Text c="dimmed" ta="center">
-                      No asset groups found.
+                      資産グループはまだ登録されていません。
                     </Text>
                   </Card>
                 ) : (
@@ -390,7 +390,7 @@ export function AdminClient({
                           <Stack gap={2}>
                             <Text fw={700}>{group.name}</Text>
                             <Text size="xs" c="dimmed">
-                              id: {group.id} / sort: {group.sort_order}
+                              ID: {group.id} / 並び順: {group.sort_order}
                             </Text>
                           </Stack>
                         </Group>
@@ -413,7 +413,7 @@ export function AdminClient({
 
         <Tabs.Panel value="tools" pt="md">
           <Stack gap="lg">
-            <SectionTitle title="Income Management" />
+            <SectionTitle title="収入管理" />
             <Link href="/tools/salary" style={{ textDecoration: 'none' }}>
               <Card withBorder radius="md" p="md">
                 <Group wrap="nowrap">
@@ -421,33 +421,33 @@ export function AdminClient({
                     <FileText size={24} />
                   </ThemeIcon>
                   <Stack gap={2}>
-                    <Text fw={700}>Salary Import</Text>
+                    <Text fw={700}>給与明細分析</Text>
                     <Text size="sm" c="dimmed">
-                      Parse payroll PDFs and register salary data.
+                      給与明細 PDF を解析して収入として登録します。
                     </Text>
                   </Stack>
                 </Group>
               </Card>
             </Link>
 
-            <SectionTitle title="External Sync" />
+            <SectionTitle title="外部連携" />
             <Card withBorder radius="md" p="md">
               <Group justify="space-between" wrap="nowrap" align="flex-start">
                 <Stack gap={4} style={{ flex: 1 }}>
                   <Group gap="xs">
-                    <Text fw={700}>Investment Scraper</Text>
+                    <Text fw={700}>投資残高同期</Text>
                     <Badge variant="light" color={getJobBadgeColor(jobs.find((job) => job.job_id === 'scraper_dc')?.last_status || 'idle')}>
                       {jobs.find((job) => job.job_id === 'scraper_dc')?.last_status || 'idle'}
                     </Badge>
                   </Group>
                   <Text size="sm" c="dimmed">
-                    Sync external investment balances into the application.
+                    外部サービスの投資残高を Flola に同期します。
                   </Text>
                   <Text size="xs" c="dimmed">
-                    Last run:{' '}
+                    最終実行:{' '}
                     {jobs.find((job) => job.job_id === 'scraper_dc')?.last_run_at
                       ? format(new Date(jobs.find((job) => job.job_id === 'scraper_dc')!.last_run_at), 'MM/dd HH:mm')
-                      : 'Never'}
+                      : '未実行'}
                   </Text>
                 </Stack>
                 <Button
@@ -457,7 +457,7 @@ export function AdminClient({
                   loading={syncing.scraper_dc}
                   leftSection={<RefreshCw size={14} />}
                 >
-                  Run
+                  実行
                 </Button>
               </Group>
             </Card>
@@ -470,8 +470,8 @@ export function AdminClient({
               value={systemTab}
               onChange={(value) => setSystemTab(value as 'jobs' | 'logs')}
               data={[
-                { label: 'Jobs', value: 'jobs' },
-                { label: 'Logs', value: 'logs' },
+                { label: 'ジョブ', value: 'jobs' },
+                { label: 'ログ', value: 'logs' },
               ]}
               fullWidth
             />
@@ -489,7 +489,7 @@ export function AdminClient({
                         <Stack gap={2}>
                           <Text fw={700}>{job.job_id}</Text>
                           <Text size="xs" c="dimmed">
-                            Last run: {job.last_run_at ? format(new Date(job.last_run_at), 'MM/dd HH:mm') : 'Never'}
+                            最終実行: {job.last_run_at ? format(new Date(job.last_run_at), 'MM/dd HH:mm') : '未実行'}
                           </Text>
                         </Stack>
                         <Badge variant="light" color={getJobBadgeColor(job.last_status)}>
@@ -508,7 +508,7 @@ export function AdminClient({
                         onClick={() => void handleTriggerJob(job.job_id)}
                         loading={syncing[job.job_id]}
                       >
-                        Run now
+                        今すぐ実行
                       </Button>
                     </Card>
                   ))}
@@ -539,7 +539,7 @@ export function AdminClient({
 
         <Tabs.Panel value="settings" pt="md">
           <Stack gap="md">
-            <SectionTitle title="Preferences" />
+            <SectionTitle title="基本設定" />
             <Card withBorder radius="md" p="md">
               <Stack gap="md">
                 <Group justify="space-between">
@@ -547,7 +547,7 @@ export function AdminClient({
                     <ThemeIcon variant="light" color="gray">
                       <Bell size={16} />
                     </ThemeIcon>
-                    <Text fw={600}>Notifications</Text>
+                    <Text fw={600}>通知</Text>
                   </Group>
                   <Switch checked={pushEnabled} onChange={(event) => setPushEnabled(event.currentTarget.checked)} />
                 </Group>
@@ -557,19 +557,19 @@ export function AdminClient({
                     <ThemeIcon variant="light" color="gray">
                       {darkModeEnabled ? <Moon size={16} /> : <Sun size={16} />}
                     </ThemeIcon>
-                    <Text fw={600}>Dark Mode</Text>
+                    <Text fw={600}>ダークモード</Text>
                   </Group>
                   <Switch checked={darkModeEnabled} onChange={(event) => setDarkModeEnabled(event.currentTarget.checked)} />
                 </Group>
               </Stack>
             </Card>
 
-            <SectionTitle title="Status" />
+            <SectionTitle title="管理画面の状態" />
             <Card withBorder radius="md" p="md">
               <Stack gap={6}>
-                <Text fw={700}>Admin surface refactor</Text>
+                <Text fw={700}>管理画面を整理済み</Text>
                 <Text size="sm" c="dimmed">
-                  Categories, asset groups, tools, and system operations are now separated into dedicated panels.
+                  カテゴリ、資産グループ、運用ツール、システム監視をタブごとに分離しています。
                 </Text>
               </Stack>
             </Card>
@@ -579,13 +579,13 @@ export function AdminClient({
         <Modal
           opened={categoryModalOpened}
           onClose={closeCategoryModal}
-          title={editingCategory ? 'Edit Category' : 'New Category'}
+          title={editingCategory ? 'カテゴリ編集' : 'カテゴリ追加'}
           centered
         >
           <Stack gap="md">
             <TextInput
-              label="Name"
-              placeholder="e.g. Groceries"
+              label="カテゴリ名"
+              placeholder="例: 食費"
               value={catName}
               onChange={(event) => setCatName(event.currentTarget.value)}
             />
@@ -593,24 +593,24 @@ export function AdminClient({
               value={catType}
               onChange={(value) => setCatType(value as 'income' | 'expense')}
               data={[
-                { label: 'Expense', value: 'expense' },
-                { label: 'Income', value: 'income' },
+                { label: '支出', value: 'expense' },
+                { label: '収入', value: 'income' },
               ]}
               fullWidth
             />
             <Textarea
-              label="Keywords"
-              description="Comma-separated keywords used for AI suggestions."
-              placeholder="supermarket, convenience store"
+              label="キーワード"
+              description="AI 補助に使うキーワードをカンマ区切りで入力します。"
+              placeholder="スーパー, コンビニ"
               minRows={3}
               value={catKeywords}
               onChange={(event) => setCatKeywords(event.currentTarget.value)}
             />
             <Group justify="flex-end">
               <Button variant="default" onClick={closeCategoryModal}>
-                Cancel
+                キャンセル
               </Button>
-              <Button onClick={() => void handleSaveCategory()}>Save</Button>
+              <Button onClick={() => void handleSaveCategory()}>保存</Button>
             </Group>
           </Stack>
         </Modal>
@@ -618,13 +618,13 @@ export function AdminClient({
         <Modal
           opened={assetGroupModalOpened}
           onClose={closeAssetGroupModal}
-          title={editingAssetGroup ? 'Edit Asset Group' : 'New Asset Group'}
+          title={editingAssetGroup ? '資産グループ編集' : '資産グループ追加'}
           centered
         >
           <Stack gap="md">
             <TextInput
               label="ID"
-              placeholder="e.g. crypto"
+              placeholder="例: crypto"
               value={assetGroupId}
               onChange={(event) =>
                 setAssetGroupId(event.currentTarget.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))
@@ -632,22 +632,22 @@ export function AdminClient({
               disabled={!!editingAssetGroup}
             />
             <TextInput
-              label="Display Name"
-              placeholder="e.g. Crypto"
+              label="表示名"
+              placeholder="例: 暗号資産"
               value={assetGroupName}
               onChange={(event) => setAssetGroupName(event.currentTarget.value)}
             />
-            <ColorInput label="Color" value={assetGroupColor} onChange={setAssetGroupColor} />
+            <ColorInput label="色" value={assetGroupColor} onChange={setAssetGroupColor} />
             <MantineNumberInput
-              label="Sort Order"
+              label="並び順"
               value={assetGroupOrder}
               onChange={(value) => setAssetGroupOrder(Number(value) || 0)}
             />
             <Group justify="flex-end">
               <Button variant="default" onClick={closeAssetGroupModal}>
-                Cancel
+                キャンセル
               </Button>
-              <Button onClick={() => void handleSaveAssetGroup()}>Save</Button>
+              <Button onClick={() => void handleSaveAssetGroup()}>保存</Button>
             </Group>
           </Stack>
         </Modal>

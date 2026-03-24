@@ -1,9 +1,9 @@
 import { Suspense } from 'react'
-import { getTransactions, getCategories, getAccountsWithBalance } from '@/app/actions'
+import { getAccountsWithBalance, getCategories, getTransactionsPage } from '@/app/actions'
 import { InboxClient } from './inbox-client'
 import InboxLoading from './loading'
 
-export const revalidate = 0 // Inboxは常に最新データが必要
+export const revalidate = 0
 
 type Props = {
   searchParams: Promise<{ status?: string }>
@@ -11,21 +11,23 @@ type Props = {
 
 async function InboxContent({ searchParams }: Props) {
   const params = await searchParams
-  const status = (params.status === 'all' || params.status === 'confirmed') ? 'confirmed' : 'pending'
+  const status = params.status === 'all' || params.status === 'confirmed' ? 'confirmed' : 'pending'
+  const pageSize = 20
 
-  // 並列でデータを取得
-  const [transactions, categories, accounts] = await Promise.all([
-    getTransactions({ status }),
+  const [transactionsPage, categories, accounts] = await Promise.all([
+    getTransactionsPage({ status, limit: pageSize, offset: 0 }),
     getCategories(),
-    getAccountsWithBalance()
+    getAccountsWithBalance(),
   ])
 
   return (
     <InboxClient
-      initialTransactions={transactions || []}
+      initialTransactions={transactionsPage.items || []}
       initialCategories={categories || []}
       initialAccounts={accounts || []}
       initialStatus={status}
+      initialHasMore={transactionsPage.hasMore}
+      pageSize={pageSize}
     />
   )
 }
