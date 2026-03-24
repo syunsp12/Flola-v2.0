@@ -1,12 +1,13 @@
+import asyncio
+import datetime
 import os
 import re
-import datetime
-import asyncio
 import traceback
 from typing import Optional
-from playwright.async_api import async_playwright
-from supabase import create_client, Client
+
 from dotenv import load_dotenv
+from playwright.async_api import Page, async_playwright
+from supabase import Client, create_client
 
 load_dotenv()
 
@@ -14,148 +15,243 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 NOMURA_LOGIN_ID = os.getenv("NOMURA_LOGIN_ID")
 NOMURA_PASSWORD = os.getenv("NOMURA_PASSWORD")
+NOMURA_ACCOUNT_NAME = os.getenv("NOMURA_ACCOUNT_NAME", "野村持ち株会")
+NOMURA_LOGIN_URL = os.getenv("NOMURA_LOGIN_URL", "https://www.e-plan.nomura.co.jp/login/index.html")
 
 JOB_ID = "scraper_nomura"
-ACCOUNT_NAME = "野村持株会"
+DETAIL_LINK_SELECTORS = [
+    'a[href*="WEAW1101.jsp"]',
+    'a[href*="zandaka"]',
+    'a[href*="asset"]',
+]
+MARKET_VALUE_SELECTORS = [
+    ".m_home_mydate_result_score",
+    ".e_assets_data .number",
+    ".financialStatus_box .number",
+]
+DATE_SELECTORS = [
+    ".e_zandaka_date",
+    "#txtZikaKijunbi",
+]
+MARKET_VALUE_LABELS = [
+    "時価評価額",
+    "評価額",
+    "資産評価額",
+]
+INVESTED_VALUE_LABELS = [
+    "累計買付額",
+    "取得金額",
+    "投資元本",
+]
 
 if not all([SUPABASE_URL, SUPABASE_KEY, NOMURA_LOGIN_ID, NOMURA_PASSWORD]):
     raise ValueError("Missing environment variables.")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-async def log_system(level: str, message: str, metadata: dict = None):
+
+async def log_system(level: str, message: str, metadata: Optional[dict] = None):
+    payload = {
+        "source": JOB_ID,
+        "level": level,
+        "message": message,
+        "metadata": metadata,
+    }
     try:
-        supabase.table("system_logs").insert({
-            "source": JOB_ID,
-            "level": level,
-            "message": message,
-            "metadata": metadata
-        }).execute()
+        supabase.table("system_logs").insert(payload).execute()
+    finally:
         print(f"[{level.upper()}] {message}")
-    except:
-        print(f"[{level.upper()}] {message}")
+
 
 async def update_job_status(status: str, message: str = ""):
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
     try:
-        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        supabase.table("job_status").upsert({
-            "job_id": JOB_ID,
-            "last_run_at": now,
-            "last_status": status,
-            "message": message
-        }).execute()
-    except:
+        supabase.table("job_status").upsert(
+            {
+                "job_id": JOB_ID,
+                "last_run_at": now,
+                "last_status": status,
+                "message": message,
+            }
+        ).execute()
+    except Exception:
         pass
 
-def clean_number(text: Optional[str]) -> int:
-    if not text: return 0
-    clean = re.sub(r"[^0-9\.\-]", "", text)
-    if not clean: return 0
-    try: return int(float(clean))
-    except ValueError: return 0
 
-def parse_japanese_date(text: str) -> str:
-    if not text: return datetime.date.today().isoformat()
-    m = re.search(r"(20\d{2})年\s*([01]?\d)月\s*([0-3]?\d)日", text)
-    if not m: return datetime.date.today().isoformat()
-    return f"{int(m.group(1)):04d}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+def clean_number(text: Optional[str]) -> int:
+    if not text:
+        return 0
+    normalized = text.replace(",", "").replace("¥", "").replace("円", "")
+    matched = re.findall(r"-?\d+(?:\.\d+)?", normalized)
+    if not matched:
+        return 0
+    try:
+        return int(float(matched[0]))
+    except ValueError:
+        return 0
+
+
+def parse_japanese_date(text: Optional[str]) -> str:
+    if not text:
+        return datetime.date.today().isoformat()
+    match = re.search(r"(20\d{2})\s*年\s*([01]?\d)\s*月\s*([0-3]?\d)\s*日", text)
+    if not match:
+        return datetime.date.today().isoformat()
+    year, month, day = (int(match.group(i)) for i in range(1, 4))
+    return f"{year:04d}-{month:02d}-{day:02d}"
+
+
+async def text_from_first_visible(page: Page, selectors: list[str]) -> Optional[str]:
+    for selector in selectors:
+        locator = page.locator(selector).first
+        if await locator.count() == 0:
+            continue
+        try:
+            text = (await locator.inner_text()).strip()
+        except Exception:
+            continue
+        if text:
+            return text
+    return None
+
+
+async def number_near_label(page: Page, labels: list[str]) -> int:
+    script = """
+      (labels) => {
+        const elements = Array.from(document.querySelectorAll('th, td, span, p, div, dt, dd, li'))
+        for (const label of labels) {
+          const matched = elements.find((element) => element.innerText && element.innerText.includes(label))
+          if (!matched) continue
+
+          const candidates = [
+            matched.nextElementSibling,
+            matched.parentElement?.nextElementSibling,
+            matched.closest('tr')?.querySelector('td:last-child'),
+            matched.closest('.financialStatus_box')?.querySelector('.number'),
+          ].filter(Boolean)
+
+          for (const candidate of candidates) {
+            const text = candidate.innerText?.trim()
+            if (text) return text
+          }
+        }
+        return ''
+      }
+    """
+    try:
+        text = await page.evaluate(script, labels)
+    except Exception:
+        return 0
+    return clean_number(text)
+
+
+async def maybe_open_detail_page(page: Page):
+    for selector in DETAIL_LINK_SELECTORS:
+      locator = page.locator(selector).first
+      if await locator.count() == 0:
+          continue
+      try:
+          await locator.click()
+          await page.wait_for_load_state("networkidle", timeout=30000)
+          await page.wait_for_timeout(2000)
+          return
+      except Exception:
+          continue
+
+
+async def resolve_market_value(page: Page) -> int:
+    by_selector = clean_number(await text_from_first_visible(page, MARKET_VALUE_SELECTORS))
+    if by_selector > 0:
+        await log_system("info", f"Found market value via selector: {by_selector}")
+        return by_selector
+
+    by_label = await number_near_label(page, MARKET_VALUE_LABELS)
+    if by_label > 0:
+        await log_system("info", f"Found market value via text: {by_label}")
+        return by_label
+
+    return 0
+
+
+async def resolve_invested_value(page: Page) -> Optional[int]:
+    invested_value = await number_near_label(page, INVESTED_VALUE_LABELS)
+    await log_system("info", f"Found invested value via text: {invested_value}")
+    return invested_value or None
+
+
+async def resolve_record_date(page: Page) -> str:
+    date_text = await text_from_first_visible(page, DATE_SELECTORS)
+    return parse_japanese_date(date_text)
+
 
 async def run():
-    await log_system("info", "🚀 Nomura Scraper started.")
+    await log_system("info", "Nomura Scraper started.")
     await update_job_status("running")
-    
-    try:
-        # 口座ID取得
-        resp = supabase.table("accounts").select("id").eq("name", ACCOUNT_NAME).single().execute()
-        if not resp.data:
-            raise Exception(f"Account '{ACCOUNT_NAME}' not found.")
-        account_id = resp.data['id']
 
-        async with async_playwright() as p:
-            # 本番は Headless モード
-            browser = await p.chromium.launch(headless=True)
-            # 画面サイズを指定してPC版を強制する
+    try:
+        response = supabase.table("accounts").select("id").eq("name", NOMURA_ACCOUNT_NAME).single().execute()
+        if not response.data:
+            raise RuntimeError(f"Account '{NOMURA_ACCOUNT_NAME}' not found.")
+        account_id = response.data["id"]
+
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch(headless=True)
             context = await browser.new_context(
-                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                viewport={'width': 1280, 'height': 1000}
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+                ),
+                viewport={"width": 1440, "height": 1200},
             )
             page = await context.new_page()
 
-            # ... (ログイン処理はそのまま) ...
-            await page.goto("https://www.e-plan.nomura.co.jp/login/index.html", timeout=60000)
+            await page.goto(NOMURA_LOGIN_URL, timeout=60000)
             if await page.locator("#m_login_tab_header_id1").count() > 0:
                 await page.click("#m_login_tab_header_id1")
-            
+
             await page.fill("#m_login_mail_address", NOMURA_LOGIN_ID)
             await page.fill("#m_login_mail_password", NOMURA_PASSWORD)
             await page.click(".m_login_btn_01")
             await page.wait_for_load_state("networkidle", timeout=60000)
 
             if await page.locator(".formErrorContent").count() > 0:
-                raise Exception("Login failed.")
+                raise RuntimeError("Login failed.")
 
-            # 2. 詳細ページ
-            detail_link = page.locator('a[href*="WEAW1101.jsp"]').first
-            if await detail_link.count() > 0:
-                await detail_link.click()
-                await page.wait_for_load_state("networkidle")
-                # コンテンツの読み込みを待機
-                await page.wait_for_timeout(5000) 
+            await maybe_open_detail_page(page)
 
-            # 3. データ抽出
-            raw_date_el = page.locator(".e_zandaka_date").first
-            record_date = parse_japanese_date(await raw_date_el.inner_text()) if await raw_date_el.count() > 0 else datetime.date.today().isoformat()
-            
-            market_value = 0
-            invested_value = None
+            market_value = await resolve_market_value(page)
+            invested_value = await resolve_invested_value(page)
+            record_date = await resolve_record_date(page)
 
-            # 評価額の取得 (クラス名でページ全体から探す)
-            score_el = page.locator(".m_home_mydate_result_score").first
-            if await score_el.count() > 0:
-                market_value = clean_number(await score_el.inner_text())
-                await log_system("info", f"🔎 Found market value via class: {market_value}")
-            
-            # 投入額（入金累計）の取得
-            try:
-                invested_value = clean_number(await page.evaluate('''() => {
-                    const ths = Array.from(document.querySelectorAll('th'));
-                    const targetTh = ths.find(th => th.innerText.includes('入金累計'));
-                    if (!targetTh) return '';
-                    const td = targetTh.nextElementSibling;
-                    return td ? td.innerText : '';
-                }'''))
-                await log_system("info", f"🔎 Found invested value via text: {invested_value}")
-            except Exception as e:
-                await log_system("warning", f"Could not extract '入金累計': {str(e)}")
+            if market_value <= 0:
+                debug_metadata = {
+                    "url": page.url,
+                    "title": await page.title(),
+                }
+                await log_system("error", "Market value could not be extracted.", debug_metadata)
+                raise RuntimeError("Market value is 0.")
 
-            await browser.close()
-
-            if market_value > 0:
-                # 4. 保存 (monthly_balances)
-                data = {
+            supabase.table("monthly_balances").upsert(
+                {
                     "record_date": record_date,
                     "account_id": account_id,
                     "amount": market_value,
-                    "invested_amount": invested_value
-                }
-                supabase.table("monthly_balances").upsert(
-                    data, 
-                    on_conflict="record_date, account_id"
-                ).execute()
-                
-                msg = f"✅ Saved to DB: {market_value:,} JPY (Invested: {invested_value})"
-                await log_system("info", msg)
-                await update_job_status("success", msg)
-            else:
-                # 失敗時のデバッグ用にページの状態を記録
-                await log_system("error", "Market value is 0. Current URL: " + page.url)
-                raise Exception("Market value is 0.")
+                    "invested_amount": invested_value,
+                },
+                on_conflict="record_date, account_id",
+            ).execute()
 
-    except Exception as e:
-        err_msg = f"Failed: {str(e)}"
-        await log_system("error", err_msg, {"trace": traceback.format_exc()})
-        await update_job_status("failed", err_msg)
-        raise e
+            await browser.close()
+
+        success_message = f"Saved to DB: {market_value:,} JPY (Invested: {invested_value})"
+        await log_system("info", success_message)
+        await update_job_status("success", success_message)
+    except Exception as error:
+        error_message = f"Failed: {error}"
+        await log_system("error", error_message, {"trace": traceback.format_exc()})
+        await update_job_status("failed", error_message)
+        raise
+
 
 if __name__ == "__main__":
     asyncio.run(run())

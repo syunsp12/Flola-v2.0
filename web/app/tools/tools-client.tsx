@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { getJobStatuses, triggerJob } from '@/app/actions'
 import { PageContainer } from '@/components/layout/page-container'
 import { PageHeader } from '@/components/layout/page-header'
+import { SCRAPER_JOB_CONFIGS } from '@/lib/jobs/config'
 
 interface ToolsClientProps {
   initialJobs: Array<{ job_id: string; last_status?: string; last_run_at?: string | null }>
@@ -117,39 +118,46 @@ export function ToolsClient({ initialJobs }: ToolsClientProps) {
             <Text size="xs" fw={800} c="dimmed" tt="uppercase" px="xs" mb="xs">
               外部同期
             </Text>
-            <Card padding="md" radius="md" withBorder>
-              <Group justify="space-between" wrap="nowrap" align="flex-start">
-                <Group gap="md" style={{ flex: 1 }}>
-                  <ThemeIcon size={48} radius="md" variant="light" color="indigo">
-                    <RefreshCw size={24} />
-                  </ThemeIcon>
-                  <Stack gap={2}>
-                    <Group gap="xs">
-                      <Text fw={700} size="lg">
-                        投資残高の同期
-                      </Text>
-                      {loadingJobs ? <Loader size="xs" /> : getStatusBadge('scraper_dc')}
+            <Stack gap="md">
+              {SCRAPER_JOB_CONFIGS.map((jobConfig) => (
+                <Card key={jobConfig.jobId} padding="md" radius="md" withBorder>
+                  <Group justify="space-between" wrap="nowrap" align="flex-start">
+                    <Group gap="md" style={{ flex: 1 }}>
+                      <ThemeIcon size={48} radius="md" variant="light" color={jobConfig.color}>
+                        <RefreshCw size={24} />
+                      </ThemeIcon>
+                      <Stack gap={2}>
+                        <Group gap="xs">
+                          <Text fw={700} size="lg">
+                            {jobConfig.title}
+                          </Text>
+                          {loadingJobs ? <Loader size="xs" /> : getStatusBadge(jobConfig.jobId)}
+                        </Group>
+                        <Text size="sm" c="dimmed">
+                          {jobConfig.description}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          最終実行:{' '}
+                          {getJob(jobConfig.jobId)?.last_run_at
+                            ? format(new Date(getJob(jobConfig.jobId)!.last_run_at!), 'MM/dd HH:mm')
+                            : '未実行'}
+                        </Text>
+                      </Stack>
                     </Group>
-                    <Text size="sm" c="dimmed">
-                      外部サービスの投資残高を Flola に同期します。
-                    </Text>
-                    <Text size="xs" c="dimmed">
-                      最終実行: {getJob('scraper_dc')?.last_run_at ? format(new Date(getJob('scraper_dc')!.last_run_at!), 'MM/dd HH:mm') : '未実行'}
-                    </Text>
-                  </Stack>
-                </Group>
-                <Button
-                  variant="filled"
-                  color="indigo"
-                  onClick={() => void handleSync('scraper_dc')}
-                  loading={syncing.scraper_dc}
-                  leftSection={<RefreshCw size={14} />}
-                  radius="md"
-                >
-                  今すぐ同期
-                </Button>
-              </Group>
-            </Card>
+                    <Button
+                      variant="filled"
+                      color={jobConfig.color}
+                      onClick={() => void handleSync(jobConfig.jobId)}
+                      loading={syncing[jobConfig.jobId]}
+                      leftSection={<RefreshCw size={14} />}
+                      radius="md"
+                    >
+                      今すぐ同期
+                    </Button>
+                  </Group>
+                </Card>
+              ))}
+            </Stack>
           </Box>
         </Stack>
       </PageContainer>

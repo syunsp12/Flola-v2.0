@@ -3,6 +3,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { revalidatePath, revalidateTag } from 'next/cache'
+import { SCRAPER_JOB_CONFIG_MAP } from '@/lib/jobs/config'
 
 // --- 型定義 ---
 type TransactionFilter = {
@@ -531,14 +532,12 @@ export async function triggerJob(jobId: string) {
   }
 
   // ワークフローファイル名の決定
-  let workflowId = ""
-  if (jobId.startsWith("scraper_")) {
-    workflowId = "investment_scraper.yml"
-  } else {
+  const scraperConfig = SCRAPER_JOB_CONFIG_MAP[jobId as keyof typeof SCRAPER_JOB_CONFIG_MAP]
+  if (!scraperConfig) {
     throw new Error(`Unknown job type: ${jobId}`)
   }
 
-  const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/workflows/${workflowId}/dispatches`
+  const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/workflows/${scraperConfig.workflowId}/dispatches`
 
   const response = await fetch(url, {
     method: 'POST',
@@ -549,6 +548,9 @@ export async function triggerJob(jobId: string) {
     },
     body: JSON.stringify({
       ref: 'main',
+      inputs: {
+        target: scraperConfig.workflowTarget,
+      },
     })
   })
 
@@ -1030,8 +1032,15 @@ export async function analyzePayrollPdf(formData: FormData) {
   }
 
   try {
-    return JSON.parse(stdout)
-  } catch {
+    const parsed = JSON.parse(stdout)
+    if (parsed?.error) {
+      throw new Error('PARSER_EXTRACTION_FAILED')
+    }
+    return parsed
+  } catch (error) {
+    if (error instanceof Error && error.message === 'PARSER_EXTRACTION_FAILED') {
+      throw error
+    }
     throw new Error('PARSER_OUTPUT_INVALID_JSON')
   }
 }

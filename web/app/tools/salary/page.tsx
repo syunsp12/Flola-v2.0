@@ -65,6 +65,9 @@ function getFriendlyPayrollErrorMessage(error: unknown) {
   if (message.includes('PARSER_OUTPUT_INVALID_JSON')) {
     return '給与明細の解析結果を読み取れませんでした。別の PDF で再度お試しください。'
   }
+  if (message.includes('PARSER_EXTRACTION_FAILED')) {
+    return 'PDF は読み込めましたが、給与明細として必要な項目を抽出できませんでした。'
+  }
 
   return message
 }
