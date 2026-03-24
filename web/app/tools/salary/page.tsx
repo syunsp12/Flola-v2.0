@@ -26,7 +26,7 @@ import { notifications } from '@mantine/notifications'
 import { ArrowLeft, CalendarDays, Check, FileText, X, ZoomIn } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { analyzePayrollPdf, getAccountsWithBalance, saveSalarySlip } from '@/app/actions'
+import { analyzePayrollPdfVercel, getAccountsWithBalance, saveSalarySlip } from '@/app/actions'
 import { PageContainer } from '@/components/layout/page-container'
 import { PageHeader } from '@/components/layout/page-header'
 
@@ -75,6 +75,12 @@ function getFriendlyPayrollErrorMessage(error: unknown) {
   }
   if (message.includes('PARSER_EXTRACTION_FAILED')) {
     return 'PDF は読み込めましたが、給与明細として必要な項目を抽出できませんでした。'
+  }
+  if (message.includes('UNEXPECTED_PAYROLL_ERROR:')) {
+    return message.replace('UNEXPECTED_PAYROLL_ERROR:', '予期しない解析エラー: ')
+  }
+  if (message.includes('UNEXPECTED_PAYROLL_ERROR')) {
+    return '給与明細解析中に予期しないエラーが発生しました。'
   }
 
   return message
@@ -142,7 +148,7 @@ export default function SalaryPage() {
     try {
       const data = new FormData()
       data.append('file', file)
-      const response = (await analyzePayrollPdf(data)) as PayrollParseResponse
+      const response = (await analyzePayrollPdfVercel(data)) as PayrollParseResponse
       if (!response.success) {
         throw new Error(response.error)
       }
@@ -274,7 +280,13 @@ export default function SalaryPage() {
                     <Text size="xs" fw={800} c="dimmed" tt="uppercase">
                       PDF プレビュー
                     </Text>
-                    <Button variant="subtle" size="compact-xs" leftSection={<ZoomIn size={12} />} onClick={openPreview}>
+                    <Button
+                      variant="subtle"
+                      size="compact-xs"
+                      leftSection={<ZoomIn size={12} />}
+                      onClick={openPreview}
+                      disabled={!result.snapshot}
+                    >
                       拡大表示
                     </Button>
                   </Group>
@@ -285,7 +297,15 @@ export default function SalaryPage() {
                     style={{ overflow: 'hidden', cursor: 'zoom-in' }}
                     onClick={openPreview}
                   >
-                    <Image src={result.snapshot} alt="給与明細プレビュー" />
+                    {result.snapshot ? (
+                      <Image src={result.snapshot} alt="給与明細プレビュー" />
+                    ) : (
+                      <Box p="xl" ta="center">
+                        <Text c="dimmed" size="sm">
+                          この環境ではプレビュー画像は生成せず、テキスト解析のみ行います。
+                        </Text>
+                      </Box>
+                    )}
                   </Paper>
                 </Stack>
               </Grid.Col>

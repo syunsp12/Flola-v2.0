@@ -4,6 +4,11 @@ import { createClient } from '@/utils/supabase/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { SCRAPER_JOB_CONFIG_MAP } from '@/lib/jobs/config'
+import { parsePayrollPdf } from '@/lib/payroll/parser'
+import { execFile } from 'child_process'
+import { access, writeFile, unlink } from 'fs/promises'
+import path from 'path'
+import { tmpdir } from 'os'
 
 // --- 型定義 ---
 type TransactionFilter = {
@@ -53,6 +58,31 @@ type SalarySlipInput = {
   to_account_id: string
   details: Record<string, unknown>
 }
+
+type CommandCandidate = {
+  command: string
+  args?: string[]
+}
+
+function getPayrollPythonCandidates(): CommandCandidate[] {
+  const candidates: CommandCandidate[] = []
+  const envCommand = process.env.PAYROLL_PYTHON_CMD?.trim()
+
+  if (envCommand) {
+    candidates.push({ command: envCommand })
+  }
+
+  if (process.platform === 'win32') {
+    candidates.push({ command: 'py', args: ['-3'] })
+    candidates.push({ command: 'py' })
+  }
+
+  candidates.push({ command: 'python3' })
+  candidates.push({ command: 'python' })
+
+  return candidates
+}
+
 
 async function assertAdmin() {
   const supabase = await createClient()
@@ -872,10 +902,6 @@ export async function getAssetHistory() {
 
 }
 
-import { execFile } from 'child_process'
-import { access, writeFile, unlink } from 'fs/promises'
-import path from 'path'
-import { tmpdir } from 'os'
 
 /**
  * 給与履歴の取得 (リレーションとJSON解析を強化した完全版)
@@ -967,6 +993,8 @@ export async function getSalaryHistory() {
  * 給与PDFの解析 (Pythonスクリプトの呼び出し)
  */
 export async function analyzePayrollPdf(formData: FormData) {
+  let tempPath: string | null = null
+  try {
   const file = formData.get('file') as File
   if (!file) {
     return { success: false as const, error: 'NO_FILE_PROVIDED' }
@@ -976,31 +1004,29 @@ export async function analyzePayrollPdf(formData: FormData) {
   const buffer = Buffer.from(bytes)
 
   // 一時ファイルとして保存
-  const tempPath = path.join(tmpdir(), `payroll_${Date.now()}.pdf`)
-  await writeFile(tempPath, buffer)
+    tempPath = path.join(tmpdir(), `payroll_${Date.now()}.pdf`)
+    const tempFilePath = tempPath
+    await writeFile(tempFilePath, buffer)
 
   const scriptPath = path.join(process.cwd(), '..', 'collectors', 'payroll_parser.py')
 
   try {
     await access(scriptPath)
   } catch {
-    await unlink(tempPath).catch(console.error)
     return { success: false as const, error: 'PARSER_SCRIPT_NOT_FOUND' }
   }
 
-  const parserCommands = [process.env.PAYROLL_PYTHON_CMD, 'python3', 'python']
-    .filter((cmd): cmd is string => !!cmd && cmd.trim().length > 0)
+  const parserCommands = getPayrollPythonCandidates()
   if (parserCommands.length === 0) {
-    await unlink(tempPath).catch(console.error)
     return { success: false as const, error: 'PYTHON_NOT_FOUND' }
   }
   let stdout = ''
   let lastError: string | null = null
 
-  for (const command of parserCommands) {
+  for (const candidate of parserCommands) {
     try {
       const output = await new Promise<string>((resolve, reject) => {
-        execFile(command, [scriptPath, tempPath], { timeout: 120000 }, (error, out, stderr) => {
+          execFile(candidate.command, [...(candidate.args || []), scriptPath, tempFilePath], { timeout: 120000 }, (error, out, stderr) => {
           if (error) {
             reject(new Error(stderr || error.message))
             return
@@ -1019,8 +1045,6 @@ export async function analyzePayrollPdf(formData: FormData) {
       }
     }
   }
-
-  await unlink(tempPath).catch(console.error)
 
   if (lastError !== null) {
     console.error('Python Error:', lastError)
@@ -1041,6 +1065,38 @@ export async function analyzePayrollPdf(formData: FormData) {
     return { success: true as const, data: parsed }
   } catch {
     return { success: false as const, error: 'PARSER_OUTPUT_INVALID_JSON' }
+  }
+  } catch (error) {
+    console.error('Unexpected payroll parser error:', error)
+    return {
+      success: false as const,
+      error: error instanceof Error ? `UNEXPECTED_PAYROLL_ERROR:${error.message}` : 'UNEXPECTED_PAYROLL_ERROR',
+    }
+  } finally {
+    if (tempPath) {
+      await unlink(tempPath).catch(console.error)
+    }
+  }
+}
+
+export async function analyzePayrollPdfVercel(formData: FormData) {
+  try {
+    const file = formData.get('file') as File
+    if (!file) {
+      return { success: false as const, error: 'NO_FILE_PROVIDED' }
+    }
+
+    const bytes = await file.arrayBuffer()
+    const buffer = Buffer.from(bytes)
+    const parsed = await parsePayrollPdf(buffer, file.name)
+
+    return { success: true as const, data: parsed }
+  } catch (error) {
+    console.error('Unexpected payroll parser error:', error)
+    return {
+      success: false as const,
+      error: error instanceof Error ? error.message : 'UNEXPECTED_PAYROLL_ERROR',
+    }
   }
 }
 
