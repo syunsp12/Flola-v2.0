@@ -31,13 +31,13 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  // Route gating only needs a valid session. Feature-level authorization remains in server actions.
+  // getUser triggers token refresh when needed and keeps downstream server components/actions in sync.
   const {
-    data: { session },
-  } = await supabase.auth.getSession()
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (
-    !session &&
+    !user &&
     !request.nextUrl.pathname.startsWith('/login') &&
     !request.nextUrl.pathname.startsWith('/auth')
   ) {

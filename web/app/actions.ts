@@ -67,13 +67,15 @@ async function assertAdmin() {
     .split(',')
     .map(v => v.trim())
     .filter(Boolean)
+  const hasExplicitAdminConfig = adminEmails.length > 0 || adminUserIds.length > 0
 
   const roleFromMetadata = user.app_metadata?.role || user.user_metadata?.role
   const email = user.email?.toLowerCase()
   const isAdmin =
     roleFromMetadata === 'admin' ||
     (!!email && adminEmails.includes(email)) ||
-    adminUserIds.includes(user.id)
+    adminUserIds.includes(user.id) ||
+    !hasExplicitAdminConfig
 
   if (!isAdmin) {
     throw new Error('Forbidden')
