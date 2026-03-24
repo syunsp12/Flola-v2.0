@@ -1,7 +1,7 @@
 'use client'
 
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { Card, Group, Text, Stack } from "@mantine/core"
+import { Card, Text, Stack } from "@mantine/core"
 
 type Props = {
   data: {
@@ -62,7 +62,7 @@ export function AssetChart({ data }: Props) {
                 borderRadius: '0.5rem',
                 fontSize: '12px',
               }}
-              formatter={(value: any) => [`¥${Number(value).toLocaleString()}`, "Net Worth"]}
+              formatter={(value: number | string | undefined) => [`¥${Number(value ?? 0).toLocaleString()}`, "Net Worth"]}
             />
             <Area type="monotone" dataKey="total" stroke="#4C6EF5" fill="#82C91E" fillOpacity={0.2} />
           </AreaChart>

@@ -2,18 +2,15 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { 
-  Card, 
   Button, 
   Text, 
   Stack, 
   Group, 
-  ThemeIcon, 
   NumberInput, 
   TextInput, 
   Divider, 
   Box, 
   Paper, 
-  rem, 
   ActionIcon, 
   Badge, 
   Grid, 
@@ -26,14 +23,11 @@ import {
 import { Dropzone, PDF_MIME_TYPE } from '@mantine/dropzone'
 import { 
   FileText, 
-  Upload, 
   X, 
   Check, 
   ArrowLeft, 
-  AlertCircle, 
   CalendarDays,
   ZoomIn,
-  Maximize2
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -43,12 +37,24 @@ import { analyzePayrollPdf, saveSalarySlip, getAccountsWithBalance } from '@/app
 import { PageHeader } from '@/components/layout/page-header'
 import { PageContainer } from '@/components/layout/page-container'
 
+type PayrollParseResult = {
+  month?: string
+  type?: string
+  snapshot?: string
+  details?: Record<string, unknown>
+}
+
+type AccountOption = {
+  id: string
+  name: string
+}
+
 export default function SalaryPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<any>(null)
+  const [result, setResult] = useState<PayrollParseResult | null>(null)
   const [previewOpened, { open: openPreview, close: closePreview }] = useDisclosure(false)
-  const [accounts, setAccounts] = useState<any[]>([])
+  const [accounts, setAccounts] = useState<AccountOption[]>([])
   const [targetAccountId, setTargetAccountId] = useState<string | null>(null)
 
   // 口座一覧を取得
@@ -90,7 +96,7 @@ export default function SalaryPage() {
     try {
       const data = new FormData()
       data.append('file', file)
-      const res: any = await analyzePayrollPdf(data)
+      const res = await analyzePayrollPdf(data) as PayrollParseResult
       
       const rawDetails = res.details || {}
       const numericDetails: Record<string, number> = {}
@@ -103,8 +109,9 @@ export default function SalaryPage() {
       setDate(res.month || '')
 
       notifications.update({ id: toastId, loading: false, message: '解析が完了しました', color: 'green', icon: <Check size={18} />, autoClose: 2000 })
-    } catch (e: any) {
-      notifications.update({ id: toastId, loading: false, message: e.message || '解析に失敗しました', color: 'red', icon: <X size={18} />, autoClose: 3000 })
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : '解析に失敗しました'
+      notifications.update({ id: toastId, loading: false, message, color: 'red', icon: <X size={18} />, autoClose: 3000 })
     }
     setLoading(false)
   }
@@ -125,7 +132,7 @@ export default function SalaryPage() {
       })
       notifications.show({ title: 'Success', message: '給与明細を登録しました', color: 'green' })
       router.push('/analyze')
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Save error:", e)
       notifications.show({ title: 'Error', message: '保存に失敗しました', color: 'red' })
     }

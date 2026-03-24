@@ -13,15 +13,17 @@ interface TransactionsProps {
 }
 
 const Transactions: React.FC<TransactionsProps> = ({ transactions, categories, accounts, onConfirm, onIgnore }) => {
+  type Suggestion = {
+    category_id: number
+    is_subscription: boolean
+    normalized_merchant?: string
+    reasoning?: string
+  }
+
   const pending = useMemo(() => transactions.filter(t => t.status === TransactionStatus.PENDING), [transactions]);
   const [analyzing, setAnalyzing] = useState<Record<string, boolean>>({});
   const [isBatchAnalyzing, setIsBatchAnalyzing] = useState(false);
-  const [suggestions, setSuggestions] = useState<Record<string, { 
-    category_id: number; 
-    is_subscription: boolean; 
-    normalized_merchant?: string;
-    reasoning?: string;
-  }>>({});
+  const [suggestions, setSuggestions] = useState<Record<string, Suggestion>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const runAnalysis = async (tx: Transaction) => {
@@ -67,7 +69,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, categories, a
     setIsBatchAnalyzing(false);
   };
 
-  const executeConfirm = (tx: Transaction, suggestion: any) => {
+  const executeConfirm = (tx: Transaction, suggestion?: Suggestion) => {
     onConfirm(tx.id, { 
       category_id: suggestion?.category_id || tx.category_id,
       is_subscription: suggestion?.is_subscription || tx.is_subscription,
@@ -121,6 +123,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, categories, a
               <div onClick={() => setExpandedId(isExpanded ? null : tx.id)} className="p-4 flex justify-between items-center cursor-pointer transition-colors relative">
                 <div className="flex items-center gap-3 flex-1 pr-2">
                   <div className="relative shrink-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img 
                       src={getSmartIconUrl(fromAcc?.name || "", fromAcc?.icon_url) || ""} 
                       className="w-10 h-10 rounded-xl object-contain bg-slate-50 border" 
@@ -129,6 +132,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, categories, a
                     />
                     {fromAcc?.card_brand && (
                       <div className="absolute -bottom-1 -right-1 bg-white rounded shadow-sm border border-slate-100 flex items-center justify-center p-0.5">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img 
                           src={getCardBrandLogo(fromAcc.card_brand) || ""} 
                           className="w-4 h-2.5 object-contain" 

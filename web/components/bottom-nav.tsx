@@ -1,10 +1,10 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
+import { Box, Group, Indicator, Paper, Stack, Text, ThemeIcon } from '@mantine/core'
+import { Home, Inbox, Landmark, PieChart, Settings } from 'lucide-react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Home, Inbox, Landmark, Settings, PieChart } from 'lucide-react'
-import { Paper, Group, Text, Stack, ThemeIcon, Indicator, Box } from '@mantine/core'
 import { getPendingCount } from '@/app/actions'
 
 export function BottomNav() {
@@ -16,17 +16,19 @@ export function BottomNav() {
       const count = await getPendingCount()
       setPendingCount(count)
     } catch (e) {
-      console.error("Failed to fetch pending count", e)
+      console.error('Failed to fetch pending count', e)
     }
   }
 
   useEffect(() => {
-    refreshCount()
-    const interval = setInterval(refreshCount, 30000) // 30秒間隔に変更（10秒→30秒）
-    return () => clearInterval(interval)
-  }, []) // pathname依存を削除（タブ遷移時の不要な再フェッチを防止）
+    void refreshCount()
+    const interval = setInterval(() => {
+      void refreshCount()
+    }, 30000)
 
-  // ログイン画面では表示しない
+    return () => clearInterval(interval)
+  }, [])
+
   if (pathname === '/login' || pathname.startsWith('/auth')) {
     return null
   }
@@ -65,7 +67,7 @@ export function BottomNav() {
           backgroundColor: 'rgba(255, 255, 255, 0.9)',
           backdropFilter: 'blur(12px)',
           border: '1px solid rgba(255, 255, 255, 0.3)',
-          pointerEvents: 'auto'
+          pointerEvents: 'auto',
         }}
       >
         <Group gap={0} justify="space-around" wrap="nowrap" align="center">
@@ -76,16 +78,18 @@ export function BottomNav() {
 
             return (
               <Box key={item.href} style={{ flex: 1 }}>
-                <Link
-                  href={item.href}
-                  style={{ textDecoration: 'none', display: 'block' }}
-                >
-                  <Stack align="center" justify="center" gap={4} style={{
-                    cursor: 'pointer',
-                    transition: 'transform 0.2s ease',
-                    transform: isActive ? 'scale(1.1)' : 'scale(1)',
-                    position: 'relative'
-                  }}>
+                <Link href={item.href} style={{ textDecoration: 'none', display: 'block' }}>
+                  <Stack
+                    align="center"
+                    justify="center"
+                    gap={4}
+                    style={{
+                      cursor: 'pointer',
+                      transition: 'transform 0.2s ease',
+                      transform: isActive ? 'scale(1.1)' : 'scale(1)',
+                      position: 'relative',
+                    }}
+                  >
                     <Indicator
                       label={hasBadge ? item.count : undefined}
                       disabled={!hasBadge}
@@ -99,20 +103,27 @@ export function BottomNav() {
                         indicator: {
                           fontWeight: 900,
                           fontSize: '0.6rem',
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                        }
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                        },
                       }}
                     >
-                      <ThemeIcon
-                        variant="transparent"
-                        color={isActive ? 'indigo' : 'gray'}
-                        size="2rem"
-                      >
-                        <Icon style={{ width: '1.4rem', height: '1.1rem' }} strokeWidth={isActive ? 2.5 : 1.5} />
+                      <ThemeIcon variant="transparent" color={isActive ? 'indigo' : 'gray'} size="2rem">
+                        <Icon
+                          style={{ width: '1.4rem', height: '1.1rem' }}
+                          strokeWidth={isActive ? 2.5 : 1.5}
+                        />
                       </ThemeIcon>
                     </Indicator>
 
-                    <Text style={{ fontSize: '0.6rem', fontWeight: isActive ? 800 : 500, color: isActive ? 'var(--mantine-color-indigo-6)' : 'var(--mantine-color-gray-6)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    <Text
+                      style={{
+                        fontSize: '0.6rem',
+                        fontWeight: isActive ? 800 : 500,
+                        color: isActive ? 'var(--mantine-color-indigo-6)' : 'var(--mantine-color-gray-6)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                      }}
+                    >
                       {item.label}
                     </Text>
                   </Stack>

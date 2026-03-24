@@ -30,6 +30,9 @@ interface AdminDashboardProps {
   onDeleteAccount: (id: string) => void;
 }
 
+type SubTabId = 'system' | 'categories' | 'accounts'
+type CategoryKind = 'expense' | 'income'
+
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
   jobs, 
   logs, 
@@ -41,12 +44,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onSaveAccount,
   onDeleteAccount
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'system' | 'categories' | 'accounts'>('system');
+  const [activeSubTab, setActiveSubTab] = useState<SubTabId>('system');
   const [running, setRunning] = useState<Record<string, boolean>>({});
   const [editingCategory, setEditingCategory] = useState<Partial<Category> | null>(null);
   const [editingAccount, setEditingAccount] = useState<Partial<Account> | null>(null);
   const [isCatModalOpen, setIsCatModalOpen] = useState(false);
   const [isAccModalOpen, setIsAccModalOpen] = useState(false);
+
+  const subTabs: { id: SubTabId; icon: typeof Cpu; label: string }[] = [
+    { id: 'system', icon: Cpu, label: '稼働状況' },
+    { id: 'categories', icon: Tag, label: 'カテゴリ' },
+    { id: 'accounts', icon: Building, label: '口座マスタ' }
+  ]
+
+  const categoryTypeOptions: { id: CategoryKind; label: string }[] = [
+    { id: 'expense', label: '支出' },
+    { id: 'income', label: '収入' }
+  ]
 
   const handleRun = async (jobId: string) => {
     setRunning(prev => ({ ...prev, [jobId]: true }));
@@ -56,14 +70,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   return (
     <div className="p-6 space-y-6 pb-32">
       <div className="flex bg-slate-100 p-1.5 rounded-[24px]">
-        {[
-          { id: 'system', icon: Cpu, label: '稼働状況' },
-          { id: 'categories', icon: Tag, label: 'カテゴリ' },
-          { id: 'accounts', icon: Building, label: '口座マスタ' }
-        ].map(tab => (
+        {subTabs.map(tab => (
           <button 
             key={tab.id}
-            onClick={() => setActiveSubTab(tab.id as any)}
+            onClick={() => setActiveSubTab(tab.id)}
             className={`flex-1 flex flex-col items-center gap-1 py-2 text-[9px] font-black rounded-2xl transition-all ${activeSubTab === tab.id ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}
           >
             <tab.icon className="w-4 h-4" />
@@ -177,11 +187,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="space-y-4">
               <input type="text" value={editingCategory.name} onChange={e => setEditingCategory({...editingCategory, name: e.target.value})} placeholder="カテゴリ名" className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-bold focus:ring-2 focus:ring-indigo-500" />
               <div className="flex bg-slate-100 p-1 rounded-2xl">
-                {[
-                  { id: 'expense', label: '支出' },
-                  { id: 'income', label: '収入' }
-                ].map(t => (
-                  <button key={t.id} onClick={() => setEditingCategory({...editingCategory, type: t.id as any})} className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${editingCategory.type === t.id ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>{t.label}</button>
+                {categoryTypeOptions.map(t => (
+                  <button key={t.id} onClick={() => setEditingCategory({...editingCategory, type: t.id})} className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${editingCategory.type === t.id ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>{t.label}</button>
                 ))}
               </div>
               <textarea value={editingCategory.keywords?.join(', ')} onChange={e => setEditingCategory({...editingCategory, keywords: e.target.value.split(',').map(s => s.trim())})} placeholder="AI用キーワード (カンマ区切り)" className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-bold focus:ring-2 focus:ring-indigo-500 h-24 resize-none" />

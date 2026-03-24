@@ -1,14 +1,14 @@
 import { Suspense } from 'react'
 import { getAccountsWithBalance, getAssetGroups } from '@/app/actions'
-import AssetsLoading from './loading'
 import { AssetsClient } from './assets-client'
+import AssetsLoading from './loading'
 
 export const revalidate = 60
 
 async function AssetsContent() {
   const [accounts, assetGroups] = await Promise.all([
     getAccountsWithBalance(),
-    getAssetGroups()
+    getAssetGroups(),
   ])
 
   return (
@@ -26,4 +26,3 @@ export default async function AssetsPage() {
     </Suspense>
   )
 }
-

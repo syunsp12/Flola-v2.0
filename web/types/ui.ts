@@ -56,7 +56,7 @@ export interface SystemLog {
   source: string;
   level: 'info' | 'warning' | 'error';
   message: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 export interface JobStatus {
@@ -81,5 +81,5 @@ export interface SalarySlip {
   tax: number;
   social_insurance: number;
   net_pay: number;
-  details?: any;
+  details?: Record<string, unknown>;
 }

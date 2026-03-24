@@ -1,16 +1,21 @@
 import { Suspense } from 'react'
-import { getAssetHistory, getSalaryHistory, getAccountsWithBalance, getAssetGroups } from '@/app/actions'
+import {
+  getAccountsWithBalance,
+  getAssetGroups,
+  getAssetHistory,
+  getSalaryHistory,
+} from '@/app/actions'
 import { AnalyzeClient } from './analyze-client'
 import AnalyzeLoading from './loading'
 
-export const revalidate = 300 // 5分キャッシュ
+export const revalidate = 300
 
 async function AnalyzeContent() {
   const [accounts, assetHistory, salaryHistory, assetGroups] = await Promise.all([
     getAccountsWithBalance(),
     getAssetHistory(),
     getSalaryHistory(),
-    getAssetGroups()
+    getAssetGroups(),
   ])
 
   return (

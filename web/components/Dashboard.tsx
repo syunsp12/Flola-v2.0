@@ -148,7 +148,7 @@ const Dashboard: React.FC<DashboardProps> = ({ accounts, monthlyBalances }) => {
                   <Tooltip 
                     contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 'bold' }}
                     itemStyle={{ color: '#6366f1' }}
-                    formatter={(val: any) => [`¥${Number(val).toLocaleString()}`, '純資産']}
+                    formatter={(val: number | string | undefined) => [`¥${Number(val ?? 0).toLocaleString()}`, '純資産']}
                   />
                   <Area type="monotone" dataKey="amount" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorAmt)" />
                 </AreaChart>

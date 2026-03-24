@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'crypto'
 import { NextResponse } from 'next/server'
 
 export type AdminApiAuthResult =
@@ -8,9 +9,17 @@ function readBearerToken(request: Request): string | null {
   const authHeader = request.headers.get('authorization')
   if (!authHeader) return null
 
-  const [scheme, token] = authHeader.split(' ')
-  if (scheme !== 'Bearer' || !token) return null
-  return token
+  const [scheme, token] = authHeader.trim().split(/\s+/, 2)
+  if (!scheme || !token || scheme.toLowerCase() !== 'bearer') return null
+  return token.trim()
+}
+
+function constantTimeTokenEquals(received: string, expected: string): boolean {
+  const receivedBuffer = Buffer.from(received)
+  const expectedBuffer = Buffer.from(expected)
+  if (receivedBuffer.length !== expectedBuffer.length) return false
+
+  return timingSafeEqual(receivedBuffer, expectedBuffer)
 }
 
 function readLegacyQueryToken(request: Request): string | null {
@@ -23,23 +32,23 @@ export function authenticateAdminApiRequest(request: Request): AdminApiAuthResul
   if (!expectedToken) {
     return {
       ok: false,
-      response: NextResponse.json({ error: 'Server Configuration Error' }, { status: 500 })
+      response: NextResponse.json({ error: 'Server Configuration Error' }, { status: 500 }),
     }
   }
 
   const bearerToken = readBearerToken(request)
   if (bearerToken) {
-    if (bearerToken === expectedToken) return { ok: true }
+    if (constantTimeTokenEquals(bearerToken, expectedToken)) return { ok: true }
     return {
       ok: false,
-      response: NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
     }
   }
 
   const allowLegacy = process.env.ALLOW_LEGACY_QUERY_AUTH === 'true'
   if (allowLegacy) {
     const legacyToken = readLegacyQueryToken(request)
-    if (legacyToken === expectedToken) {
+    if (legacyToken && constantTimeTokenEquals(legacyToken, expectedToken)) {
       console.warn('[DEPRECATED AUTH] Query token auth accepted. Use Authorization: Bearer header instead.')
       return { ok: true }
     }
@@ -47,6 +56,6 @@ export function authenticateAdminApiRequest(request: Request): AdminApiAuthResul
 
   return {
     ok: false,
-    response: NextResponse.json({ error: 'Missing or invalid authorization header' }, { status: 401 })
+    response: NextResponse.json({ error: 'Missing or invalid authorization header' }, { status: 401 }),
   }
 }

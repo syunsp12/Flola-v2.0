@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { memo, useCallback, useEffect, useState } from 'react'
 import { getTransactions, updateTransaction, applyAiCategories, createTransaction, requestHistoryFetch, deleteTransaction, revertTransactionStatus } from '@/app/actions'
 import {
   Card,
@@ -28,7 +27,7 @@ import {
 import { DatePickerInput } from '@mantine/dates'
 import { useDisclosure } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
-import { Check, X, CreditCard, RefreshCw, Plus, PenLine, History, Wallet, ArrowUpRight, ArrowDownLeft, Trash2, Undo2, Landmark } from 'lucide-react'
+import { Check, X, CreditCard, RefreshCw, Plus, PenLine, History, ArrowUpRight, ArrowDownLeft, Trash2, Undo2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
 import { PageHeader } from '@/components/layout/page-header'
@@ -36,6 +35,59 @@ import { PageContainer } from '@/components/layout/page-container'
 import { getSmartIconUrl, getCardBrandLogo } from '@/lib/utils/icon-helper'
 
 type Category = { id: number; name: string }
+
+type AccountOption = {
+  id: string
+  name: string
+  icon_url?: string | null
+  card_brand?: string | null
+}
+
+type InboxTransaction = {
+  id: string
+  date: string
+  amount: number
+  type: 'income' | 'expense' | 'transfer'
+  description: string
+  from_account_id?: string | null
+  category_id?: number | null
+  status: 'pending' | 'confirmed' | 'ignore'
+  is_ai_suggested?: boolean
+}
+
+type SelectOption = {
+  value: string
+  label: string
+}
+
+type TransactionField = 'date' | 'amount' | 'description' | 'from_account_id' | 'category_id'
+type TransactionFieldValue = string | number | null
+type InboxTab = 'pending' | 'confirmed'
+
+type TransactionItemProps = {
+  t: InboxTransaction
+  index: number
+  categoryOptions: SelectOption[]
+  accountOptions: SelectOption[]
+  accountsRaw: AccountOption[]
+  handleFieldChange: (transactionId: string, field: TransactionField, value: TransactionFieldValue) => void
+  handleIgnore: (id: string) => Promise<void>
+  handleApprove: (t: InboxTransaction) => Promise<void>
+  handleRevert: (id: string) => Promise<void>
+  handleDelete: (id: string) => Promise<void>
+}
+
+type TransactionListProps = {
+  transactions: InboxTransaction[]
+  categoryOptions: SelectOption[]
+  accountOptions: SelectOption[]
+  accountsRaw: AccountOption[]
+  handleFieldChange: (transactionId: string, field: TransactionField, value: TransactionFieldValue) => void
+  handleIgnore: (id: string) => Promise<void>
+  handleApprove: (t: InboxTransaction) => Promise<void>
+  handleRevert: (id: string) => Promise<void>
+  handleDelete: (id: string) => Promise<void>
+}
 
 // Geminiロゴを模したカスタムSVGアイコン
 function GeminiIcon({ size = 16, ...props }: { size?: number } & React.ComponentPropsWithoutRef<'svg'>) {
@@ -64,7 +116,7 @@ function GeminiIcon({ size = 16, ...props }: { size?: number } & React.Component
 }
 
 // 各取引アイテムのコンポーネント
-function TransactionItem({
+const TransactionItem = memo(function TransactionItem({
   t,
   index,
   categoryOptions,
@@ -75,28 +127,34 @@ function TransactionItem({
   handleApprove,
   handleRevert,
   handleDelete
-}: any) {
+}: TransactionItemProps) {
   const [editingField, setEditingField] = useState<string | null>(null)
   const [imageError, setImageError] = useState(false)
+  const [draftDescription, setDraftDescription] = useState(t.description || '')
 
   const isPending = t.status === 'pending'
   const isConfirmed = t.status === 'confirmed'
   const isExpense = t.type === 'expense'
 
   const stopEditing = () => setEditingField(null)
+  const commitDescription = () => {
+    if (draftDescription !== t.description) {
+      handleFieldChange(t.id, 'description', draftDescription)
+    }
+    stopEditing()
+  }
+
+  useEffect(() => {
+    if (editingField !== 'description') {
+      setDraftDescription(t.description || '')
+    }
+  }, [editingField, t.description])
 
   // 現在の口座情報の詳細を取得
-  const currentAccount = accountsRaw.find((a: any) => a.id === t.from_account_id)
+  const currentAccount = accountsRaw.find((a) => a.id === t.from_account_id)
   const accountIcon = getSmartIconUrl(currentAccount?.name || '', currentAccount?.icon_url)
-  const brandLogo = getCardBrandLogo(currentAccount?.card_brand)
+  const brandLogo = getCardBrandLogo(currentAccount?.card_brand ?? null)
 
-  const getAccountTypeIcon = (type: string) => {
-    switch (type) {
-      case 'bank': return <Landmark size={14} />
-      case 'credit_card': return <CreditCard size={14} />
-      default: return <Wallet size={14} />
-    }
-  }
 
   return (
     <motion.div
@@ -109,7 +167,7 @@ function TransactionItem({
         transition: { duration: 0.2 }
       }}
       transition={{ duration: 0.3, delay: Math.min(index * 0.05, 0.5) }}
-      layout
+      layout={editingField === 'description' ? false : 'position'}
     >
       <Card
         padding="lg"
@@ -208,10 +266,10 @@ function TransactionItem({
           {isPending && editingField === 'description' ? (
             <TextInput
               size="lg"
-              value={t.description || ''}
-              onChange={(e) => handleFieldChange(t.id, 'description', e.currentTarget.value)}
-              onBlur={stopEditing}
-              onKeyDown={(e) => e.key === 'Enter' && stopEditing()}
+              value={draftDescription}
+              onChange={(e) => setDraftDescription(e.currentTarget.value)}
+              onBlur={commitDescription}
+              onKeyDown={(e) => e.key === 'Enter' && commitDescription()}
               autoFocus
               styles={{ input: { fontWeight: 700, fontSize: rem(16) } }}
             />
@@ -288,7 +346,7 @@ function TransactionItem({
                           boxShadow: 'var(--mantine-shadow-xs)'
                         }}
                       >
-                        <Image src={brandLogo} w={12} h={8} fit="contain" />
+                        <Image src={brandLogo} w={12} h={8} fit="contain" alt="card brand" />
                       </Box>
                     )}
                   </Box>
@@ -390,9 +448,20 @@ function TransactionItem({
       </Card>
     </motion.div>
   )
-}
+}, (prevProps, nextProps) => (
+  prevProps.t === nextProps.t &&
+  prevProps.index === nextProps.index &&
+  prevProps.categoryOptions === nextProps.categoryOptions &&
+  prevProps.accountOptions === nextProps.accountOptions &&
+  prevProps.accountsRaw === nextProps.accountsRaw &&
+  prevProps.handleFieldChange === nextProps.handleFieldChange &&
+  prevProps.handleIgnore === nextProps.handleIgnore &&
+  prevProps.handleApprove === nextProps.handleApprove &&
+  prevProps.handleRevert === nextProps.handleRevert &&
+  prevProps.handleDelete === nextProps.handleDelete
+))
 
-function TransactionList({
+const TransactionList = memo(function TransactionList({
   transactions,
   categoryOptions,
   accountOptions,
@@ -402,7 +471,7 @@ function TransactionList({
   handleApprove,
   handleRevert,
   handleDelete
-}: any) {
+}: TransactionListProps) {
   return (
     <Stack gap="lg">
       <style jsx global>{`
@@ -432,7 +501,7 @@ function TransactionList({
         }
       `}</style>
       <AnimatePresence mode="popLayout">
-        {transactions.map((t: any, index: number) => (
+        {transactions.map((t, index) => (
           <TransactionItem
             key={t.id}
             t={t}
@@ -450,12 +519,12 @@ function TransactionList({
       </AnimatePresence>
     </Stack>
   )
-}
+})
 
 interface InboxClientProps {
-  initialTransactions: any[];
+  initialTransactions: InboxTransaction[];
   initialCategories: Category[];
-  initialAccounts: any[];
+  initialAccounts: AccountOption[];
   initialStatus: 'pending' | 'confirmed';
 }
 
@@ -465,13 +534,18 @@ export function InboxClient({
   initialAccounts,
   initialStatus
 }: InboxClientProps) {
-  const [transactions, setTransactions] = useState<any[]>(initialTransactions)
-  const [categories, setCategories] = useState<Category[]>(initialCategories)
-  const [accounts, setAccounts] = useState<any[]>(initialAccounts)
+  const [transactions, setTransactions] = useState<InboxTransaction[]>(initialTransactions)
+  const [accounts] = useState<AccountOption[]>(initialAccounts)
+  const [categoryOptions] = useState<SelectOption[]>(() =>
+    initialCategories.map((category) => ({ value: category.id.toString(), label: category.name }))
+  )
+  const [accountOptions] = useState<SelectOption[]>(() =>
+    initialAccounts.map((account) => ({ value: account.id, label: account.name }))
+  )
   const [loading, setLoading] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
 
-  const [activeTab, setActiveTab] = useState<string | null>(initialStatus)
+  const [activeTab, setActiveTab] = useState<InboxTab>(initialStatus)
   const [isMenuOpened, setIsMenuOpened] = useState(false)
 
   // 手動入力モーダル用
@@ -487,19 +561,19 @@ export function InboxClient({
   const [historyRange, setHistoryRange] = useState<[Date | null, Date | null]>([null, null])
   const [isHistoryRequesting, setIsHistoryRequesting] = useState(false)
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true)
     try {
       // サーバーアクションを呼び出してデータを更新
       const transData = await getTransactions({
-        status: (activeTab as any) || 'pending'
+        status: activeTab
       })
       setTransactions(transData || [])
-    } catch (e) {
+    } catch {
       notifications.show({ title: 'Error', message: 'データの取得に失敗しました', color: 'red' })
     }
     setLoading(false)
-  }
+  }, [activeTab])
 
   // タブ切り替え時にデータを再取得
   useEffect(() => {
@@ -509,14 +583,14 @@ export function InboxClient({
     // ただし、Server Componentから渡されたデータは初期表示用なので、
     // タブが変わった場合はクライアントサイドで取得する必要がある。
     if (activeTab !== initialStatus) {
-      loadData()
+      void Promise.resolve().then(loadData)
     } else {
       // 初期タブに戻った場合、もしデータが古くなっている可能性があれば再取得すべきだが、
       // ここではパフォーマンス優先で、明示的なリロードボタン以外ではキャッシュ（state）を使う戦略もアリ。
       // しかし、一貫性のために再取得する。
       // ただし無限ループを防ぐため、initialTransactionsをセットするのはコンポーネントマウント時のみ。
     }
-  }, [activeTab])
+  }, [activeTab, initialStatus, loadData])
 
   const handleAiPredict = async () => {
     setAiLoading(true)
@@ -533,7 +607,7 @@ export function InboxClient({
         } else {
           notifications.show({ title: 'Info', message: '提案可能なカテゴリが見つかりませんでした', color: 'blue' })
         }
-      } catch (e) {
+      } catch {
         notifications.show({ title: 'Error', message: 'AI処理中にエラーが発生しました', color: 'red' })
       }
     } else {
@@ -542,7 +616,7 @@ export function InboxClient({
     setAiLoading(false)
   }
 
-  const handleApprove = async (t: any) => {
+  const handleApprove = useCallback(async (t: InboxTransaction) => {
     if (!t.category_id) {
       notifications.show({ message: 'カテゴリを選択してください', color: 'red' })
       return
@@ -554,43 +628,43 @@ export function InboxClient({
       amount: t.amount,
       date: t.date,
       description: t.description,
-      from_account_id: t.from_account_id
+      from_account_id: t.from_account_id ?? undefined
     })
     notifications.show({ message: '承認しました', color: 'green' })
-  }
+  }, [])
 
-  const handleIgnore = async (id: string) => {
+  const handleIgnore = useCallback(async (id: string) => {
     setTransactions(prev => prev.filter(item => item.id !== id))
     await updateTransaction(id, { status: 'ignore' })
     notifications.show({ message: '除外しました', color: 'gray' })
-  }
+  }, [])
 
-  const handleRevert = async (id: string) => {
+  const handleRevert = useCallback(async (id: string) => {
     setTransactions(prev => prev.filter(item => item.id !== id))
     try {
       await revertTransactionStatus(id)
       notifications.show({ message: '承認待ちに戻しました', color: 'orange' })
-    } catch (e) {
+    } catch {
       notifications.show({ title: 'Error', message: '差し戻しに失敗しました', color: 'red' })
     }
-  }
+  }, [])
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
     if (!confirm('この取引を完全に削除しますか？')) return
     setTransactions(prev => prev.filter(item => item.id !== id))
     try {
       await deleteTransaction(id)
       notifications.show({ message: '削除しました', color: 'gray' })
-    } catch (e) {
+    } catch {
       notifications.show({ title: 'Error', message: '削除に失敗しました', color: 'red' })
     }
-  }
+  }, [])
 
-  const handleFieldChange = (transactionId: string, field: string, value: any) => {
+  const handleFieldChange = useCallback((transactionId: string, field: TransactionField, value: TransactionFieldValue) => {
     setTransactions(prev => prev.map(t =>
       t.id === transactionId ? { ...t, [field]: value, is_ai_suggested: (field === 'category_id' || field === 'from_account_id') ? false : t.is_ai_suggested } : t
     ))
-  }
+  }, [])
 
   const handleManualSave = async () => {
     if (!newAmount || !newDescription || !newCategoryId || !newDate || !newAccountId) {
@@ -614,13 +688,10 @@ export function InboxClient({
       setNewAccountId(null)
       setNewDate(new Date())
       close()
-    } catch (e) {
+    } catch {
       notifications.show({ title: 'Error', message: '登録に失敗しました', color: 'red' })
     }
   }
-
-  const categoryOptions = categories.map(c => ({ value: c.id.toString(), label: c.name }))
-  const accountOptions = accounts.map(acc => ({ value: acc.id, label: acc.name }))
 
   const tabListStyle = {
     backgroundColor: 'var(--mantine-color-gray-1)',
@@ -653,14 +724,14 @@ export function InboxClient({
         color: 'green'
       })
       historyClose()
-    } catch (e) {
+    } catch {
       notifications.show({ title: 'Error', message: 'リクエストに失敗しました', color: 'red' })
     }
     setIsHistoryRequesting(false)
   }
 
   return (
-    <Tabs value={activeTab} onChange={setActiveTab} variant="pills">
+    <Tabs value={activeTab} onChange={(value) => setActiveTab(value === 'confirmed' ? 'confirmed' : 'pending')} variant="pills">
       <PageHeader
         title="Inbox"
         subtitle={`${transactions.length} items`}
