@@ -37,6 +37,10 @@ type PayrollParseResult = {
   details?: Record<string, unknown>
 }
 
+type PayrollParseResponse =
+  | { success: true; data: PayrollParseResult }
+  | { success: false; error: string }
+
 type AccountOption = {
   id: string
   name: string
@@ -51,7 +55,11 @@ function normalizeDetails(input: Record<string, unknown>) {
 }
 
 function getFriendlyPayrollErrorMessage(error: unknown) {
-  const message = error instanceof Error ? error.message : 'UNKNOWN_ERROR'
+  const message = error instanceof Error ? error.message : String(error || 'UNKNOWN_ERROR')
+
+  if (message.includes('NO_FILE_PROVIDED')) {
+    return 'PDF ファイルを選択してください。'
+  }
 
   if (message.includes('PARSER_SCRIPT_NOT_FOUND')) {
     return '給与明細の解析スクリプトが見つかりません。サーバー設定を確認してください。'
@@ -134,7 +142,12 @@ export default function SalaryPage() {
     try {
       const data = new FormData()
       data.append('file', file)
-      const parsed = (await analyzePayrollPdf(data)) as PayrollParseResult
+      const response = (await analyzePayrollPdf(data)) as PayrollParseResponse
+      if (!response.success) {
+        throw new Error(response.error)
+      }
+
+      const parsed = response.data
       const normalizedDetails = normalizeDetails(parsed.details || {})
 
       setResult(parsed)

@@ -968,7 +968,9 @@ export async function getSalaryHistory() {
  */
 export async function analyzePayrollPdf(formData: FormData) {
   const file = formData.get('file') as File
-  if (!file) throw new Error('No file provided')
+  if (!file) {
+    return { success: false as const, error: 'NO_FILE_PROVIDED' }
+  }
 
   const bytes = await file.arrayBuffer()
   const buffer = Buffer.from(bytes)
@@ -983,14 +985,14 @@ export async function analyzePayrollPdf(formData: FormData) {
     await access(scriptPath)
   } catch {
     await unlink(tempPath).catch(console.error)
-    throw new Error('PARSER_SCRIPT_NOT_FOUND')
+    return { success: false as const, error: 'PARSER_SCRIPT_NOT_FOUND' }
   }
 
   const parserCommands = [process.env.PAYROLL_PYTHON_CMD, 'python3', 'python']
     .filter((cmd): cmd is string => !!cmd && cmd.trim().length > 0)
   if (parserCommands.length === 0) {
     await unlink(tempPath).catch(console.error)
-    throw new Error('PYTHON_NOT_FOUND')
+    return { success: false as const, error: 'PYTHON_NOT_FOUND' }
   }
   let stdout = ''
   let lastError: string | null = null
@@ -1025,23 +1027,20 @@ export async function analyzePayrollPdf(formData: FormData) {
 
     const lowered = lastError.toLowerCase()
     if (lowered.includes('not found') || lowered.includes('enoent')) {
-      throw new Error('PYTHON_NOT_FOUND')
+      return { success: false as const, error: 'PYTHON_NOT_FOUND' }
     }
 
-    throw new Error('PARSER_EXECUTION_FAILED')
+    return { success: false as const, error: 'PARSER_EXECUTION_FAILED' }
   }
 
   try {
     const parsed = JSON.parse(stdout)
     if (parsed?.error) {
-      throw new Error('PARSER_EXTRACTION_FAILED')
+      return { success: false as const, error: 'PARSER_EXTRACTION_FAILED' }
     }
-    return parsed
-  } catch (error) {
-    if (error instanceof Error && error.message === 'PARSER_EXTRACTION_FAILED') {
-      throw error
-    }
-    throw new Error('PARSER_OUTPUT_INVALID_JSON')
+    return { success: true as const, data: parsed }
+  } catch {
+    return { success: false as const, error: 'PARSER_OUTPUT_INVALID_JSON' }
   }
 }
 
