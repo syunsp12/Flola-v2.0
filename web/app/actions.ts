@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { headers } from 'next/headers'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { SCRAPER_JOB_CONFIG_MAP } from '@/lib/jobs/config'
 import { execFile } from 'child_process'
@@ -1087,10 +1088,33 @@ export async function analyzePayrollPdfVercel(formData: FormData) {
 
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
-    const { parsePayrollPdf } = await import('@/lib/payroll/parser')
-    const parsed = await parsePayrollPdf(buffer, file.name)
+    const requestHeaders = await headers()
+    const protocol = requestHeaders.get('x-forwarded-proto') || 'https'
+    const host = requestHeaders.get('x-forwarded-host') || requestHeaders.get('host')
 
-    return { success: true as const, data: parsed }
+    if (!host) {
+      return { success: false as const, error: 'PAYROLL_API_HOST_NOT_FOUND' }
+    }
+
+    const response = await fetch(`${protocol}://${host}/api/payroll_parse`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/pdf',
+        'x-payroll-filename': file.name,
+      },
+      body: buffer,
+      cache: 'no-store',
+    })
+
+    const result = await response.json()
+    if (!response.ok) {
+      return {
+        success: false as const,
+        error: typeof result?.error === 'string' ? result.error : 'UNEXPECTED_PAYROLL_ERROR',
+      }
+    }
+
+    return result
   } catch (error) {
     console.error('Unexpected payroll parser error:', error)
     return {
