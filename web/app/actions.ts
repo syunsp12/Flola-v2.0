@@ -83,6 +83,31 @@ function getPayrollPythonCandidates(): CommandCandidate[] {
   return candidates
 }
 
+function getPayrollParseApiUrl(forwardedProto?: string | null, forwardedHost?: string | null, host?: string | null) {
+  const explicitUrl = process.env.PAYROLL_PARSE_API_URL?.trim()
+  if (explicitUrl) {
+    return explicitUrl
+  }
+
+  const publicSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim()
+  if (publicSiteUrl) {
+    return `${publicSiteUrl.replace(/\/$/, '')}/api/payroll_parse`
+  }
+
+  const vercelUrl = process.env.VERCEL_URL?.trim()
+  if (vercelUrl) {
+    return `https://${vercelUrl.replace(/\/$/, '')}/api/payroll_parse`
+  }
+
+  const resolvedHost = forwardedHost || host
+  if (resolvedHost) {
+    const protocol = forwardedProto || 'https'
+    return `${protocol}://${resolvedHost}/api/payroll_parse`
+  }
+
+  return null
+}
+
 
 async function assertAdmin() {
   const supabase = await createClient()
@@ -1089,14 +1114,17 @@ export async function analyzePayrollPdfVercel(formData: FormData) {
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
     const requestHeaders = await headers()
-    const protocol = requestHeaders.get('x-forwarded-proto') || 'https'
-    const host = requestHeaders.get('x-forwarded-host') || requestHeaders.get('host')
+    const apiUrl = getPayrollParseApiUrl(
+      requestHeaders.get('x-forwarded-proto'),
+      requestHeaders.get('x-forwarded-host'),
+      requestHeaders.get('host')
+    )
 
-    if (!host) {
+    if (!apiUrl) {
       return { success: false as const, error: 'PAYROLL_API_HOST_NOT_FOUND' }
     }
 
-    const response = await fetch(`${protocol}://${host}/api/payroll_parse`, {
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/pdf',
@@ -1119,7 +1147,7 @@ export async function analyzePayrollPdfVercel(formData: FormData) {
     console.error('Unexpected payroll parser error:', error)
     return {
       success: false as const,
-      error: error instanceof Error ? error.message : 'UNEXPECTED_PAYROLL_ERROR',
+      error: error instanceof Error ? `PAYROLL_API_FETCH_FAILED:${error.message}` : 'PAYROLL_API_FETCH_FAILED',
     }
   }
 }
