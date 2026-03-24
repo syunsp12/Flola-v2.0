@@ -1,8 +1,0 @@
-{
-  "functions": {
-    "api/payroll_parse.py": {
-      "memory": 1024,
-      "maxDuration": 30
-    }
-  }
-}
