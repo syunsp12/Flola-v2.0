@@ -21,11 +21,10 @@ export function BottomNav() {
   }
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      void refreshCount()
-    }, 10000)
+    refreshCount()
+    const interval = setInterval(refreshCount, 30000) // 30秒間隔に変更（10秒→30秒）
     return () => clearInterval(interval)
-  }, [pathname])
+  }, []) // pathname依存を削除（タブ遷移時の不要な再フェッチを防止）
 
   // ログイン画面では表示しない
   if (pathname === '/login' || pathname.startsWith('/auth')) {
@@ -47,21 +46,21 @@ export function BottomNav() {
   }
 
   return (
-    <Box 
-      pos="fixed" 
-      bottom="1rem" 
-      left={0} 
-      right={0} 
+    <Box
+      pos="fixed"
+      bottom="1rem"
+      left={0}
+      right={0}
       px="md"
       style={{ zIndex: 100, pointerEvents: 'none' }}
     >
-      <Paper 
-        shadow="xl" 
+      <Paper
+        shadow="xl"
         p="xs"
         radius="xl"
         withBorder
-        style={{ 
-          maxWidth: 400, 
+        style={{
+          maxWidth: 400,
           margin: '0 auto',
           backgroundColor: 'rgba(255, 255, 255, 0.9)',
           backdropFilter: 'blur(12px)',
@@ -74,20 +73,20 @@ export function BottomNav() {
             const Icon = item.icon
             const isActive = pathname === item.href
             const hasBadge = item.label === 'Inbox' && typeof item.count === 'number' && item.count > 0
-            
+
             return (
               <Box key={item.href} style={{ flex: 1 }}>
                 <Link
                   href={item.href}
                   style={{ textDecoration: 'none', display: 'block' }}
                 >
-                  <Stack align="center" justify="center" gap={4} style={{ 
+                  <Stack align="center" justify="center" gap={4} style={{
                     cursor: 'pointer',
                     transition: 'transform 0.2s ease',
                     transform: isActive ? 'scale(1.1)' : 'scale(1)',
                     position: 'relative'
                   }}>
-                    <Indicator 
+                    <Indicator
                       label={hasBadge ? item.count : undefined}
                       disabled={!hasBadge}
                       size="1.1rem"
@@ -104,9 +103,9 @@ export function BottomNav() {
                         }
                       }}
                     >
-                      <ThemeIcon 
-                        variant="transparent" 
-                        color={isActive ? 'indigo' : 'gray'} 
+                      <ThemeIcon
+                        variant="transparent"
+                        color={isActive ? 'indigo' : 'gray'}
                         size="2rem"
                       >
                         <Icon style={{ width: '1.4rem', height: '1.1rem' }} strokeWidth={isActive ? 2.5 : 1.5} />

@@ -3,7 +3,7 @@ import { getTransactions, getCategories, getAccountsWithBalance } from '@/app/ac
 import { InboxClient } from './inbox-client'
 import InboxLoading from './loading'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 0 // Inboxは常に最新データが必要
 
 type Props = {
   searchParams: Promise<{ status?: string }>

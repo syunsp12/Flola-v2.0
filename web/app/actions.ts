@@ -183,38 +183,48 @@ export async function getCategories() {
 export async function getAccountsWithBalance() {
   const supabase = await createClient()
 
-  const { data: accounts } = await supabase
-    .from('accounts')
-    .select(`
-      *,
-      asset_groups (id, name, color)
-    `)
-    .order('type')
-    .order('id')
+  // 2つのクエリを並列実行
+  const [accountsResult, balancesResult] = await Promise.all([
+    supabase
+      .from('accounts')
+      .select(`
+        *,
+        asset_groups (id, name, color)
+      `)
+      .order('type')
+      .order('id'),
+    supabase
+      .from('monthly_balances')
+      .select('account_id, amount, record_date')
+      .order('record_date', { ascending: false })
+      .limit(500) // 口座数×月数の上限（全件取得を防止）
+  ])
 
+  const accounts = accountsResult.data
   if (!accounts) return []
 
-  // 各口座の最新の残高レコードのみを取得するクエリ
-  const { data: latestBalances, error } = await supabase
-    .from('monthly_balances')
-    .select('account_id, amount, record_date')
-    .order('record_date', { ascending: false })
-
-  if (error) {
-    console.error("Error fetching balances:", error)
+  const latestBalances = balancesResult.data
+  if (balancesResult.error) {
+    console.error("Error fetching balances:", balancesResult.error)
     return accounts.map(acc => ({ ...acc, current_amount: 0, last_updated: null }))
   }
 
-  const result = accounts.map(acc => {
-    const latest = latestBalances?.find(b => b.account_id === acc.id)
+  // 口座ごとの最新残高をMapで高速ルックアップ
+  const latestMap = new Map<string, { amount: number; record_date: string }>()
+  latestBalances?.forEach(b => {
+    if (!latestMap.has(b.account_id)) {
+      latestMap.set(b.account_id, b)
+    }
+  })
+
+  return accounts.map(acc => {
+    const latest = latestMap.get(acc.id)
     return {
       ...acc,
       current_amount: latest ? latest.amount : 0,
       last_updated: latest ? latest.record_date : null
     }
   })
-
-  return result
 }
 
 // --- 6. 資産残高の更新 ---
