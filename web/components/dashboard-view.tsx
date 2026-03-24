@@ -44,12 +44,10 @@ export function DashboardView({ data }: { data: DashboardData }) {
   return (
     <Stack gap="lg" pb="xl">
       <Card
-        radius="md"
-        p="lg"
+        withBorder={false}
         style={{
           background: 'linear-gradient(135deg, var(--mantine-color-indigo-9) 0%, var(--mantine-color-indigo-7) 100%)',
           color: 'white',
-          border: 'none',
           boxShadow: '0 8px 16px rgba(0,0,0,0.1)',
         }}
       >
@@ -84,7 +82,7 @@ export function DashboardView({ data }: { data: DashboardData }) {
         </Stack>
       </Card>
 
-      <Card radius="md" p="md" withBorder>
+      <Card>
         <Stack gap="sm">
           <Text size="sm" fw={700} c="dimmed" tt="uppercase">
             今月の支出
@@ -120,7 +118,7 @@ export function DashboardView({ data }: { data: DashboardData }) {
         </Stack>
       </Card>
 
-      <Card radius="md" p="md" withBorder>
+      <Card>
         <Group justify="space-between" mb="sm">
           <Text size="sm" fw={700} c="dimmed" tt="uppercase">
             最近の取引

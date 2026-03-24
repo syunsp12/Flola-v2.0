@@ -50,9 +50,6 @@ function AccountCard({ acc, getIcon, onEdit, onEditAccount, onDeleteAccount }: a
 
     return (
         <Card
-            padding="md"
-            radius="md"
-            withBorder
             style={{ cursor: 'pointer' }}
             onClick={() => onEdit(acc)}
         >

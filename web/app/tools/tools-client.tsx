@@ -96,7 +96,7 @@ export function ToolsClient({ initialJobs }: ToolsClientProps) {
               収入管理
             </Text>
             <Link href="/tools/salary" style={{ textDecoration: 'none' }}>
-              <Card padding="md" radius="md" withBorder>
+              <Card>
                 <Group wrap="nowrap">
                   <ThemeIcon size={48} radius="md" variant="light" color="blue">
                     <FileText size={24} />

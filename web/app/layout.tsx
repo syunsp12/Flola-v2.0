@@ -12,6 +12,7 @@ export const metadata: Metadata = {
 
 const theme = createTheme({
   primaryColor: 'indigo',
+  fontFamily: "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
   defaultRadius: 'md',
   components: {
     Button: {
@@ -24,6 +25,7 @@ const theme = createTheme({
         withBorder: true,
         shadow: 'sm',
         radius: 'lg',
+        padding: 'lg',
       },
     },
   },
@@ -39,7 +41,7 @@ export default function RootLayout({
       <head>
         <ColorSchemeScript />
       </head>
-      <body className="bg-[#f1f3f5]" style={{ fontFamily: "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" }}>
+      <body className="bg-gray-100 font-sans text-gray-900 antialiased">
         <MantineProvider theme={theme}>
           <Notifications position="top-center" zIndex={2077} />
           <div className="pb-32 max-w-md mx-auto min-h-screen bg-white shadow-2xl relative border-x border-gray-200">

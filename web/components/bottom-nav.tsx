@@ -61,14 +61,8 @@ export function BottomNav() {
         p="xs"
         radius="xl"
         withBorder
-        style={{
-          maxWidth: 400,
-          margin: '0 auto',
-          backgroundColor: 'rgba(255, 255, 255, 0.9)',
-          backdropFilter: 'blur(12px)',
-          border: '1px solid rgba(255, 255, 255, 0.3)',
-          pointerEvents: 'auto',
-        }}
+        className="max-w-[400px] mx-auto bg-white/90 backdrop-blur-md pointer-events-auto"
+        style={{ border: '1px solid rgba(255, 255, 255, 0.4)' }}
       >
         <Group gap={0} justify="space-around" wrap="nowrap" align="center">
           {items.map((item) => {
@@ -116,13 +110,11 @@ export function BottomNav() {
                     </Indicator>
 
                     <Text
-                      style={{
-                        fontSize: '0.6rem',
-                        fontWeight: isActive ? 800 : 500,
-                        color: isActive ? 'var(--mantine-color-indigo-6)' : 'var(--mantine-color-gray-6)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px',
-                      }}
+                      size="0.6rem"
+                      fw={isActive ? 800 : 500}
+                      c={isActive ? 'indigo.6' : 'gray.6'}
+                      tt="uppercase"
+                      style={{ letterSpacing: '0.5px' }}
                     >
                       {item.label}
                     </Text>

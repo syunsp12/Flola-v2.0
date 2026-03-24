@@ -335,7 +335,7 @@ export function AdminClient({
                   カテゴリを追加
                 </Button>
                 {categories.length === 0 ? (
-                  <Card withBorder radius="md" p="lg">
+                  <Card>
                     <Text c="dimmed" ta="center">
                       カテゴリはまだ登録されていません。
                     </Text>
@@ -374,7 +374,7 @@ export function AdminClient({
                   資産グループを追加
                 </Button>
                 {assetGroups.length === 0 ? (
-                  <Card withBorder radius="md" p="lg">
+                  <Card>
                     <Text c="dimmed" ta="center">
                       資産グループはまだ登録されていません。
                     </Text>
@@ -415,7 +415,7 @@ export function AdminClient({
           <Stack gap="lg">
             <SectionTitle title="収入管理" />
             <Link href="/tools/salary" style={{ textDecoration: 'none' }}>
-              <Card withBorder radius="md" p="md">
+              <Card>
                 <Group wrap="nowrap">
                   <ThemeIcon size={48} radius="md" variant="light" color="blue">
                     <FileText size={24} />

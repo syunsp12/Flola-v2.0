@@ -212,7 +212,7 @@ async function DashboardContent() {
 function DashboardFallback() {
   return (
     <Stack gap="lg" className="p-5">
-      <Card padding="lg" radius="lg" withBorder>
+      <Card>
         <Stack gap="md">
           <Group justify="space-between">
             <Skeleton height={12} width={100} radius="xl" />
@@ -226,7 +226,7 @@ function DashboardFallback() {
         </Stack>
       </Card>
 
-      <Card padding="lg" radius="lg" withBorder>
+      <Card>
         <Stack gap="md">
           <Group justify="space-between">
             <Skeleton height={20} width={120} radius="md" />

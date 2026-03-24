@@ -21,13 +21,10 @@ export function PageHeader({
 }: PageHeaderProps) {
   return (
     <Paper
+      className="sticky top-0 z-50 border-b border-gray-200 bg-white/95 backdrop-blur-sm"
       px="md"
-      py="0.6rem"
+      py="sm"
       radius={0}
-      style={{
-        borderBottom: '1px solid var(--mantine-color-gray-2)',
-        backgroundColor: 'rgba(255, 255, 255, 0.98)',
-      }}
     >
       <Group justify="space-between" align="center" wrap="nowrap" gap="xs">
         <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
@@ -44,9 +41,9 @@ export function PageHeader({
           </div>
 
           <Box style={{ minWidth: 0 }}>
-            <Text size="sm" fw={900} lh={1.1} style={{ letterSpacing: '-0.5px' }} truncate>{title}</Text>
+            <Text size="md" fw={800} lh={1.1} truncate>{title}</Text>
             {subtitle && (
-              <Text style={{ fontSize: '0.5rem', color: 'var(--mantine-color-gray-6)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: 1 }}>{subtitle}</Text>
+              <Text size="xs" fw={700} c="dimmed" tt="uppercase" mt={2} lh={1}>{subtitle}</Text>
             )}
           </Box>
         </Group>
