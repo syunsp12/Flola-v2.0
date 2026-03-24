@@ -1,7 +1,6 @@
 {
   "functions": {
     "api/payroll_parse.py": {
-      "runtime": "@vercel/python",
       "memory": 1024,
       "maxDuration": 30
     }
