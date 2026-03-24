@@ -63,10 +63,17 @@ async function assertAdmin() {
     .split(',')
     .map(v => v.trim().toLowerCase())
     .filter(Boolean)
+  const adminUserIds = (process.env.ADMIN_USER_IDS || '')
+    .split(',')
+    .map(v => v.trim())
+    .filter(Boolean)
 
   const roleFromMetadata = user.app_metadata?.role || user.user_metadata?.role
   const email = user.email?.toLowerCase()
-  const isAdmin = roleFromMetadata === 'admin' || (!!email && adminEmails.includes(email))
+  const isAdmin =
+    roleFromMetadata === 'admin' ||
+    (!!email && adminEmails.includes(email)) ||
+    adminUserIds.includes(user.id)
 
   if (!isAdmin) {
     throw new Error('Forbidden')

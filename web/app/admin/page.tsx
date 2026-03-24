@@ -45,7 +45,7 @@ async function AdminContent() {
               <Text fw={700}>Admin page could not be loaded.</Text>
               <Text c="dimmed" size="sm">
                 {message === 'Forbidden'
-                  ? 'Current account is not allowed to open this page. Check ADMIN_EMAILS or the user role metadata.'
+                  ? 'Current account is not allowed to open this page. Check ADMIN_EMAILS, ADMIN_USER_IDS, or the user role metadata.'
                   : message}
               </Text>
             </Stack>

@@ -1,3 +1,5 @@
+import { Box, Card, Group, Skeleton, Stack } from '@mantine/core'
+import { Suspense } from 'react'
 import { DashboardView } from '@/components/dashboard-view'
 import { PageContainer } from '@/components/layout/page-container'
 import { PageHeader } from '@/components/layout/page-header'
@@ -43,14 +45,53 @@ async function getDashboardData() {
   }
 }
 
-export default async function DashboardPage() {
+async function DashboardContent() {
   const data = await getDashboardData()
+  return <DashboardView data={data} />
+}
 
+function DashboardFallback() {
+  return (
+    <Stack gap="lg" className="p-5">
+      <Card padding="lg" radius="lg" withBorder>
+        <Stack gap="md">
+          <Group justify="space-between">
+            <Skeleton height={12} width={100} radius="xl" />
+            <Skeleton height={20} width={80} radius="xl" />
+          </Group>
+          <Skeleton height={40} width={200} radius="md" />
+          <Group grow>
+            <Skeleton height={30} radius="md" />
+            <Skeleton height={30} radius="md" />
+          </Group>
+        </Stack>
+      </Card>
+
+      <Card padding="lg" radius="lg" withBorder>
+        <Stack gap="md">
+          <Group justify="space-between">
+            <Skeleton height={20} width={120} radius="md" />
+            <Skeleton height={24} width={100} radius="md" />
+          </Group>
+          <Skeleton height={220} radius="md" />
+        </Stack>
+      </Card>
+
+      <Box>
+        <Skeleton height={200} radius="lg" />
+      </Box>
+    </Stack>
+  )
+}
+
+export default function DashboardPage() {
   return (
     <>
       <PageHeader title="Dashboard" subtitle="Financial Overview" />
       <PageContainer>
-        <DashboardView data={data} />
+        <Suspense fallback={<DashboardFallback />}>
+          <DashboardContent />
+        </Suspense>
       </PageContainer>
     </>
   )

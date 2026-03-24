@@ -1,12 +1,10 @@
 'use client'
 
+import { Badge, Box, Card, Group, Image, Stack, Text, ThemeIcon } from '@mantine/core'
+import { TrendingDown, TrendingUp, Wallet } from 'lucide-react'
 import Link from 'next/link'
-import { Card, Text, Group, ThemeIcon, Stack, RingProgress, Paper, Table, Badge, Grid, rem, Box, Image } from "@mantine/core"
-import { Wallet, TrendingUp, TrendingDown, ArrowRight } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { format } from 'date-fns'
-import { motion } from 'framer-motion'
-import { getSmartIconUrl, getCardBrandLogo } from '@/lib/utils/icon-helper'
+import { getCardBrandLogo, getSmartIconUrl } from '@/lib/utils/icon-helper'
 
 type TransactionAccount = {
   name?: string
@@ -28,34 +26,6 @@ type RecentTransaction = {
   categories?: TransactionCategory | TransactionCategory[] | null
 }
 
-type TooltipPayloadItem = { value: number }
-type CustomTooltipProps = {
-  active?: boolean
-  payload?: TooltipPayloadItem[]
-  label?: string
-}
-
-function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
-  if (active && payload && payload.length) {
-    return (
-      <Paper p="xs" shadow="md" withBorder>
-        <Text size="xs" fw={700} mb={4}>{label}</Text>
-        <Stack gap={2}>
-          <Group gap="xs">
-            <div style={{ width: 8, height: 8, backgroundColor: 'var(--mantine-color-teal-5)', borderRadius: '50%' }} />
-            <Text size="xs" c="dimmed">Income: ¥{payload[0].value.toLocaleString()}</Text>
-          </Group>
-          <Group gap="xs">
-            <div style={{ width: 8, height: 8, backgroundColor: 'var(--mantine-color-red-5)', borderRadius: '50%' }} />
-            <Text size="xs" c="dimmed">Expense: ¥{payload[1].value.toLocaleString()}</Text>
-          </Group>
-        </Stack>
-      </Paper>
-    );
-  }
-  return null;
-}
-
 type DashboardData = {
   netWorth: number
   totalAssets: number
@@ -67,219 +37,168 @@ type DashboardData = {
 }
 
 export function DashboardView({ data }: { data: DashboardData }) {
-  const totalExpense = data.currentMonthTotalExpense || 0;
-
-  const container = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1
-      }
-    }
-  }
-
-  const item = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0 }
-  }
-
   return (
-    <motion.div variants={container} initial="hidden" animate="show">
-      <Stack gap="lg" pb="xl">
-        {/* ... (純資産サマリーなどは変更なし) ... */}
-        <motion.div variants={item}>
-          <Card 
-            radius="md" 
-            p="lg" 
-            style={{ 
-              background: 'linear-gradient(135deg, var(--mantine-color-indigo-9) 0%, var(--mantine-color-indigo-7) 100%)',
-              color: 'white',
-              border: 'none',
-              boxShadow: '0 8px 16px rgba(0,0,0,0.1)'
-            }}
-          >
-            <Stack gap="xs">
-              <Group justify="space-between">
-                <Group gap="xs" style={{ opacity: 0.9 }}>
-                  <Wallet size={18} />
-                  <Text size="sm" fw={600}>Net Worth</Text>
-                </Group>
-              </Group>
-              
-              <Text fw={800} lh={1.1} style={{ fontSize: rem(32), letterSpacing: '-0.5px' }}>
-                ¥ {data.netWorth.toLocaleString()}
+    <Stack gap="lg" pb="xl">
+      <Card
+        radius="md"
+        p="lg"
+        style={{
+          background: 'linear-gradient(135deg, var(--mantine-color-indigo-9) 0%, var(--mantine-color-indigo-7) 100%)',
+          color: 'white',
+          border: 'none',
+          boxShadow: '0 8px 16px rgba(0,0,0,0.1)',
+        }}
+      >
+        <Stack gap="xs">
+          <Group justify="space-between">
+            <Group gap="xs" style={{ opacity: 0.9 }}>
+              <Wallet size={18} />
+              <Text size="sm" fw={600}>
+                Net Worth
               </Text>
-
-              <Grid mt="sm">
-                <Grid.Col span={6}>
-                  <Stack gap={0}>
-                    <Text size="xs" c="indigo.1" fw={600}>Assets</Text>
-                    <Text fw={700}>¥ {data.totalAssets.toLocaleString()}</Text>
-                  </Stack>
-                </Grid.Col>
-                <Grid.Col span={6} style={{ borderLeft: '1px solid rgba(255,255,255,0.2)' }}>
-                  <Stack gap={0} pl="xs">
-                    <Text size="xs" c="red.2" fw={600}>Liabilities</Text>
-                    <Text fw={700}>-¥ {data.totalLiabilities.toLocaleString()}</Text>
-                  </Stack>
-                </Grid.Col>
-              </Grid>
-            </Stack>
-          </Card>
-        </motion.div>
-
-        {/* 2. 収支トレンド */}
-        <motion.div variants={item}>
-          <div style={{ minWidth: 0 }}>
-            <Text size="sm" fw={700} mb="sm" c="dimmed" tt="uppercase">Cash Flow Trend</Text>
-            <Paper p="md" radius="md" withBorder style={{ display: 'flex', flexDirection: 'column' }}>
-              <div style={{ flex: 1, minHeight: rem(200), minWidth: 0 }}>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={data.monthlyFlowData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                    <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} dy={10} />
-                    <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(value) => `${value / 10000}万`} />
-                    <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
-                    <Bar dataKey="income" fill="var(--mantine-color-teal-5)" radius={[4, 4, 0, 0]} maxBarSize={40} animationDuration={1500} />
-                    <Bar dataKey="expense" fill="var(--mantine-color-red-5)" radius={[4, 4, 0, 0]} maxBarSize={40} animationDuration={1500} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Paper>
-          </div>
-        </motion.div>
-
-        {/* 3. カテゴリ内訳 */}
-        <motion.div variants={item}>
-          <div>
-            <Text size="sm" fw={700} mb="sm" c="dimmed" tt="uppercase">Monthly Spending</Text>
-            <Card radius="md" p="md" withBorder>
-              <Group align="flex-start" justify="space-between" wrap="nowrap">
-                <Stack align="center" gap={0} style={{ flexShrink: 0 }}>
-                  <RingProgress
-                    size={140}
-                    thickness={12}
-                    roundCaps
-                    label={
-                      <Text size="xs" ta="center" fw={700}>
-                        Total<br/>
-                        <Text span size="lg">¥{(totalExpense/10000).toFixed(1)}万</Text>
-                      </Text>
-                    }
-                    sections={data.categoryRanking.map((cat, index) => ({
-                      value: totalExpense > 0 ? (cat.value / totalExpense) * 100 : 0,
-                      color: ['indigo', 'cyan', 'teal', 'grape', 'orange'][index % 5]
-                    }))}
-                  />
-                </Stack>
-
-                <Stack gap="xs" style={{ flex: 1, minWidth: 0 }}>
-                  {data.categoryRanking.map((cat, index) => (
-                    <Group key={cat.name} justify="space-between" wrap="nowrap">
-                      <Group gap={6} style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ 
-                          width: 8, 
-                          height: 8, 
-                          borderRadius: '50%', 
-                          flexShrink: 0,
-                          backgroundColor: `var(--mantine-color-${['indigo', 'cyan', 'teal', 'grape', 'orange'][index % 5]}-6)` 
-                        }} />
-                        <Text size="xs" lineClamp={1} fw={500}>{cat.name}</Text>
-                      </Group>
-                      <Text size="xs" fw={700} style={{ flexShrink: 0 }}>¥{cat.value.toLocaleString()}</Text>
-                    </Group>
-                  ))}
-                  {data.categoryRanking.length === 0 && (
-                    <Text size="xs" c="dimmed" ta="center" py="lg">データがありません</Text>
-                  )}
-                </Stack>
-              </Group>
-            </Card>
-          </div>
-        </motion.div>
-
-        {/* 4. 最近の取引 */}
-        <motion.div variants={item}>
-          <div>
-            <Group justify="space-between" mb="sm">
-              <Text size="sm" fw={700} c="dimmed" tt="uppercase">Recent Activity</Text>
-              <Link href="/inbox?status=all" style={{ textDecoration: 'none' }}>
-                <Group gap={4} style={{ cursor: 'pointer' }}>
-                  <Text size="xs" c="indigo" fw={600}>View All</Text>
-                  <ArrowRight size={12} color="var(--mantine-color-indigo-6)" />
-                </Group>
-              </Link>
             </Group>
-            
-            <Card radius="md" p={0} withBorder>
-              <Table verticalSpacing="sm" striped highlightOnHover>
-                <Table.Tbody>
-                  {data.recentTransactions.map((t) => {
-                    const acc = Array.isArray(t.accounts) ? t.accounts[0] : t.accounts;
-                    const accountIcon = getSmartIconUrl(acc?.name || '', acc?.icon_url);
-                    const brandLogo = getCardBrandLogo(acc?.card_brand ?? null);
-                    
-                    return (
-                      <Table.Tr key={t.id}>
-                        <Table.Td width={60} pl="md">
-                          <Box pos="relative" w={28} h={28}>
-                            {accountIcon ? (
-                              <Image src={accountIcon} w={28} h={28} radius="xs" alt="account icon" />
-                            ) : (
-                              <ThemeIcon variant="light" color={t.type === 'income' ? 'teal' : 'red'} radius="md" size={28}>
-                                {t.type === 'income' ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-                              </ThemeIcon>
-                            )}
-                            {brandLogo && (
-                              <Box 
-                                pos="absolute" 
-                                bottom={-3} 
-                                right={-3} 
-                                bg="white" 
-                                p={1.5} 
-                                style={{ 
-                                  border: '1px solid var(--mantine-color-gray-2)',
-                                  borderRadius: rem(2),
-                                  display: 'flex', 
-                                  boxShadow: 'var(--mantine-shadow-xs)' 
-                                }}
-                              >
-                                <Image src={brandLogo} w={12} h={8} fit="contain" alt="card brand" />
-                              </Box>
-                            )}
-                          </Box>
-                        </Table.Td>
-                        <Table.Td>
-                          <Text size="sm" fw={600} lineClamp={1}>{t.description}</Text>
-                          <Group gap={6}>
-                            <Text size="xs" c="dimmed">{format(new Date(t.date), 'MM/dd')}</Text>
-                            <Badge size="xs" variant="dot" color="gray">
-                              {(Array.isArray(t.categories) ? t.categories[0]?.name : t.categories?.name) || 'Uncategorized'}
-                            </Badge>
-                          </Group>
-                        </Table.Td>
-                        <Table.Td ta="right" pr="md">
-                           <Text size="sm" fw={700} c={t.type === 'income' ? 'teal' : undefined}>
-                             {t.type === 'expense' ? '-' : '+'}¥{t.amount.toLocaleString()}
-                           </Text>
-                        </Table.Td>
-                      </Table.Tr>
-                    );
-                  })}
-                  {data.recentTransactions.length === 0 && (
-                     <Table.Tr>
-                       <Table.Td colSpan={3} ta="center" c="dimmed" py="xl">
-                         取引履歴がありません
-                       </Table.Td>
-                     </Table.Tr>
-                  )}
-                </Table.Tbody>
-              </Table>
-            </Card>
-          </div>
-        </motion.div>
-      </Stack>
-    </motion.div>
+          </Group>
+
+          <Text fw={800} lh={1.1} style={{ fontSize: 32, letterSpacing: '-0.5px' }}>
+            ¥ {data.netWorth.toLocaleString()}
+          </Text>
+
+          <Group grow mt="sm">
+            <Box>
+              <Text size="xs" c="indigo.1" fw={600}>
+                Assets
+              </Text>
+              <Text fw={700}>¥ {data.totalAssets.toLocaleString()}</Text>
+            </Box>
+            <Box pl="md" style={{ borderLeft: '1px solid rgba(255,255,255,0.2)' }}>
+              <Text size="xs" c="red.2" fw={600}>
+                Liabilities
+              </Text>
+              <Text fw={700}>-¥ {data.totalLiabilities.toLocaleString()}</Text>
+            </Box>
+          </Group>
+        </Stack>
+      </Card>
+
+      <Card radius="md" p="md" withBorder>
+        <Stack gap="sm">
+          <Text size="sm" fw={700} c="dimmed" tt="uppercase">
+            Monthly Spending
+          </Text>
+          <Text fw={700}>Total: ¥{data.currentMonthTotalExpense.toLocaleString()}</Text>
+          {data.categoryRanking.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              No category data yet.
+            </Text>
+          ) : (
+            data.categoryRanking.map((category, index) => (
+              <Group key={`${category.name}-${index}`} justify="space-between" wrap="nowrap">
+                <Group gap={8} style={{ minWidth: 0, flex: 1 }}>
+                  <Box
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      flexShrink: 0,
+                      backgroundColor: `var(--mantine-color-${['indigo', 'cyan', 'teal', 'grape', 'orange'][index % 5]}-6)`,
+                    }}
+                  />
+                  <Text size="sm" lineClamp={1}>
+                    {category.name}
+                  </Text>
+                </Group>
+                <Text size="sm" fw={700}>
+                  ¥{category.value.toLocaleString()}
+                </Text>
+              </Group>
+            ))
+          )}
+        </Stack>
+      </Card>
+
+      <Card radius="md" p="md" withBorder>
+        <Group justify="space-between" mb="sm">
+          <Text size="sm" fw={700} c="dimmed" tt="uppercase">
+            Recent Activity
+          </Text>
+          <Link href="/inbox?status=all" style={{ textDecoration: 'none' }}>
+            <Text size="xs" c="indigo" fw={600}>
+              View All
+            </Text>
+          </Link>
+        </Group>
+
+        <Stack gap="sm">
+          {data.recentTransactions.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              No recent transactions.
+            </Text>
+          ) : (
+            data.recentTransactions.map((transaction) => {
+              const account = Array.isArray(transaction.accounts) ? transaction.accounts[0] : transaction.accounts
+              const category = Array.isArray(transaction.categories) ? transaction.categories[0] : transaction.categories
+              const accountIcon = getSmartIconUrl(account?.name || '', account?.icon_url)
+              const brandLogo = getCardBrandLogo(account?.card_brand ?? null)
+
+              return (
+                <Group key={transaction.id} justify="space-between" wrap="nowrap" align="flex-start">
+                  <Group gap="sm" wrap="nowrap" style={{ minWidth: 0, flex: 1 }}>
+                    <Box pos="relative" w={28} h={28}>
+                      {accountIcon ? (
+                        <Image src={accountIcon} w={28} h={28} radius="xs" alt="account icon" />
+                      ) : (
+                        <ThemeIcon
+                          variant="light"
+                          color={transaction.type === 'income' ? 'teal' : 'red'}
+                          radius="md"
+                          size={28}
+                        >
+                          {transaction.type === 'income' ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                        </ThemeIcon>
+                      )}
+                      {brandLogo && (
+                        <Box
+                          pos="absolute"
+                          bottom={-3}
+                          right={-3}
+                          bg="white"
+                          p={1.5}
+                          style={{
+                            border: '1px solid var(--mantine-color-gray-2)',
+                            borderRadius: 2,
+                            display: 'flex',
+                            boxShadow: 'var(--mantine-shadow-xs)',
+                          }}
+                        >
+                          <Image src={brandLogo} w={12} h={8} fit="contain" alt="card brand" />
+                        </Box>
+                      )}
+                    </Box>
+
+                    <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
+                      <Text size="sm" fw={600} lineClamp={1}>
+                        {transaction.description}
+                      </Text>
+                      <Group gap={6}>
+                        <Text size="xs" c="dimmed">
+                          {format(new Date(transaction.date), 'MM/dd')}
+                        </Text>
+                        <Badge size="xs" variant="dot" color="gray">
+                          {category?.name || 'Uncategorized'}
+                        </Badge>
+                      </Group>
+                    </Stack>
+                  </Group>
+
+                  <Text size="sm" fw={700} c={transaction.type === 'income' ? 'teal' : undefined}>
+                    {transaction.type === 'expense' ? '-' : '+'}¥{transaction.amount.toLocaleString()}
+                  </Text>
+                </Group>
+              )
+            })
+          )}
+        </Stack>
+      </Card>
+    </Stack>
   )
 }
