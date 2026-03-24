@@ -301,6 +301,29 @@ export default function SalaryPage() {
     setDetails((prev) => ({ ...prev, [key]: Number(value) || 0 }))
   }
 
+  const renameDetail = (previousKey: string, nextKeyRaw: string) => {
+    const nextKey = nextKeyRaw.trim()
+    if (!nextKey || nextKey === previousKey || details[nextKey] !== undefined) {
+      return
+    }
+
+    setDetails((prev) => {
+      const amount = prev[previousKey] ?? 0
+      const next = { ...prev }
+      delete next[previousKey]
+      next[nextKey] = amount
+      return next
+    })
+
+    setDetailKinds((prev) => {
+      const next = { ...prev }
+      const currentKind = next[previousKey] || 'reference'
+      delete next[previousKey]
+      next[nextKey] = currentKind
+      return next
+    })
+  }
+
   const updateDetailKind = (key: string, value: DetailKind) => {
     setDetailKinds((prev) => ({
       ...prev,
@@ -515,7 +538,7 @@ export default function SalaryPage() {
                               <Table.Thead>
                                 <Table.Tr>
                                   <Table.Th>項目名</Table.Th>
-                                  <Table.Th w={120}>区分</Table.Th>
+                                  <Table.Th w={92}>区分</Table.Th>
                                   <Table.Th w={140}>金額</Table.Th>
                                   <Table.Th w={56}></Table.Th>
                                 </Table.Tr>
@@ -524,9 +547,12 @@ export default function SalaryPage() {
                                 {detailEntries.map(([key, value]) => (
                                   <Table.Tr key={key}>
                                     <Table.Td>
-                                      <Text size="sm" fw={700}>
-                                        {key}
-                                      </Text>
+                                      <TextInput
+                                        size="xs"
+                                        value={key}
+                                        onChange={(event) => renameDetail(key, event.currentTarget.value)}
+                                        styles={{ input: { fontWeight: 700 } }}
+                                      />
                                     </Table.Td>
                                     <Table.Td>
                                       <Button
