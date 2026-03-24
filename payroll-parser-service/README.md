@@ -8,13 +8,13 @@ Vercel Python Function for payroll PDF parsing.
 2. Deploy it as a separate service from the main `web` app.
 3. Confirm the endpoint responds at:
 
-`https://<your-payroll-service-domain>/api/payroll_parse`
+`https://<your-payroll-service-domain>/api`
 
 ## Main App Configuration
 
 Set this environment variable on the main `web` project:
 
-`PAYROLL_PARSE_API_URL=https://<your-payroll-service-domain>/api/payroll_parse`
+`PAYROLL_PARSE_API_URL=https://<your-payroll-service-domain>/api`
 
 ## Notes
 
