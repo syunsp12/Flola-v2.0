@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Home, Inbox, Landmark, Settings, PieChart } from 'lucide-react'
-import { Paper, Group, Text, Stack, ThemeIcon, rem, Indicator, Box } from '@mantine/core'
+import { Paper, Group, Text, Stack, ThemeIcon, Indicator, Box } from '@mantine/core'
 import { getPendingCount } from '@/app/actions'
 
 export function BottomNav() {
@@ -21,8 +21,9 @@ export function BottomNav() {
   }
 
   useEffect(() => {
-    refreshCount()
-    const interval = setInterval(refreshCount, 10000)
+    const interval = setInterval(() => {
+      void refreshCount()
+    }, 10000)
     return () => clearInterval(interval)
   }, [pathname])
 

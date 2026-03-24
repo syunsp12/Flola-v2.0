@@ -1,23 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { authenticateAdminApiRequest } from '@/lib/auth/admin-api'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const token = searchParams.get('token')
-
-  // 簡易セキュリティ
-  const VALID_TOKEN = process.env.ADMIN_API_KEY
-
-  if (!VALID_TOKEN) {
-    console.error('ADMIN_API_KEY is not set')
-    return NextResponse.json({ error: 'Server Configuration Error' }, { status: 500 })
-  }
-
-  if (token !== VALID_TOKEN) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const auth = authenticateAdminApiRequest(request)
+  if (!auth.ok) return auth.response
 
   const supabase = await createClient()
 

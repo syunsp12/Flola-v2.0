@@ -11,7 +11,13 @@ import { notifications } from '@mantine/notifications'
 import { format } from 'date-fns'
 
 export default function ToolsPage() {
-  const [jobs, setJobs] = useState<any[]>([])
+  type JobStatus = {
+    job_id: string
+    last_run_at: string | null
+    last_status: 'success' | 'failed' | 'running' | string
+  }
+
+  const [jobs, setJobs] = useState<JobStatus[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState<Record<string, boolean>>({})
 
@@ -36,14 +42,16 @@ export default function ToolsPage() {
       })
       // 状態を定期的に更新するために少し待機
       setTimeout(loadJobStatus, 5000)
-    } catch (e: any) {
-      notifications.show({ title: 'エラー', message: e.message, color: 'red' })
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : '同期リクエストに失敗しました'
+      notifications.show({ title: 'エラー', message, color: 'red' })
     } finally {
       setSyncing(prev => ({ ...prev, [jobId]: false }))
     }
   }
 
   const getJob = (jobId: string) => jobs.find(j => j.job_id === jobId)
+  const scraperDcJob = getJob('scraper_dc')
 
   const getStatusBadge = (jobId: string) => {
     const job = getJob(jobId)
@@ -97,7 +105,7 @@ export default function ToolsPage() {
                     </Group>
                     <Text size="sm" c="dimmed">DC年金、野村持株会のデータをまとめて取得します</Text>
                     <Text size="10px" c="dimmed">
-                      最終同期: {getJob('scraper_dc')?.last_run_at ? format(new Date(getJob('scraper_dc').last_run_at), 'MM/dd HH:mm') : '未実行'}
+                      最終同期: {scraperDcJob?.last_run_at ? format(new Date(scraperDcJob.last_run_at), 'MM/dd HH:mm') : '未実行'}
                     </Text>
                   </Stack>
                 </Group>

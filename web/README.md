@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Flola Web
 
-## Getting Started
+Flola の Web アプリ（Next.js App Router）です。
 
-First, run the development server:
+## 開発
 
 ```bash
+cd web
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 必須環境変数（抜粋）
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `ADMIN_API_KEY`
+- `ALLOW_LEGACY_QUERY_AUTH`（任意。`true` のとき `?key=` / `?token=` を移行期間として許可）
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 管理者判定
 
-## Learn More
+管理系 Server Action は以下のいずれかで admin 扱いになります。
 
-To learn more about Next.js, take a look at the following resources:
+- `user.app_metadata.role === 'admin'`
+- `ADMIN_EMAILS`（カンマ区切り）にログインユーザーのメールアドレスが含まれる
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+例:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+ADMIN_EMAILS=alice@example.com,bob@example.com
+```
 
-## Deploy on Vercel
+## 給与PDF解析
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+給与解析は Python スクリプト（`collectors/payroll_parser.py`）を呼び出します。
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `PAYROLL_PYTHON_CMD` を設定するとそのコマンドを優先利用
+- 未設定時は `python3` → `python` の順でフォールバック
+
+例:
+
+```bash
+PAYROLL_PYTHON_CMD=python3
+```
+
+失敗時の代表エラーコード:
+
+- `PYTHON_NOT_FOUND`
+- `PARSER_SCRIPT_NOT_FOUND`
+- `PARSER_OUTPUT_INVALID_JSON`
+- `PARSER_EXECUTION_FAILED`
+
+
+## テスト受け入れ方針（PR前チェック）
+
+最低限、以下を実施してからPRに結果を記載してください。
+
+```bash
+cd web
+npm ci
+npm run lint
+npm run build
+```
+
+変更が限定的な場合の補助コマンド:
+
+```bash
+cd web
+npx eslint app/api/status/route.ts app/api/webhook/gmail/route.ts app/actions.ts
+```
+
+### API認証変更時の受け入れ確認
+
+- `Authorization: Bearer <ADMIN_API_KEY>` で 200
+- ヘッダなしで 401
+- 不正トークンで 403
+
+### 管理Action変更時の受け入れ確認
+
+- adminユーザーで成功
+- 非adminユーザーで拒否（Forbidden）

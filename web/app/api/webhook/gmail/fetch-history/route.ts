@@ -1,26 +1,34 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { authenticateAdminApiRequest } from '@/lib/auth/admin-api'
 
-// Admin API Keyで保護されたルートなので、Service Role Keyを使用してRLSをバイパスする
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+function getSupabaseAdminClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-  console.warn('SUPABASE_SERVICE_ROLE_KEY is not set. Using ANON_KEY. RLS might block updates.')
+  if (!supabaseUrl || !supabaseKey) {
+    return { error: NextResponse.json({ error: 'Supabase credentials are not configured' }, { status: 500 }) }
+  }
+
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.warn('SUPABASE_SERVICE_ROLE_KEY is not set. Using ANON_KEY. RLS might block updates.')
+  }
+
+  return { client: createClient(supabaseUrl, supabaseKey) }
 }
-
-const supabase = createClient(supabaseUrl, supabaseKey)
 
 export async function GET(request: Request) {
   try {
+    const auth = authenticateAdminApiRequest(request)
+    if (!auth.ok) return auth.response
+
+    const supabaseResult = getSupabaseAdminClient()
+    if ('error' in supabaseResult) return supabaseResult.error
+    const supabase = supabaseResult.client
+
     const { searchParams } = new URL(request.url)
-    const key = searchParams.get('key')
     const start = searchParams.get('start')
     const end = searchParams.get('end')
-
-    if (key !== process.env.ADMIN_API_KEY) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
 
     // パターンA: 期間指定があれば、重複チェック用の既存取引データを返す (GAS: doPost用)
     if (start && end) {
@@ -97,12 +105,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { searchParams } = new URL(request.url)
-    const key = searchParams.get('key')
+    const auth = authenticateAdminApiRequest(request)
+    if (!auth.ok) return auth.response
 
-    if (key !== process.env.ADMIN_API_KEY) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const supabaseResult = getSupabaseAdminClient()
+    if ('error' in supabaseResult) return supabaseResult.error
+    const supabase = supabaseResult.client
 
     const body = await request.json()
     const { requestId, status, message, processedCount } = body
@@ -111,7 +119,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing requestId' }, { status: 400 })
     }
 
-    const updateData: any = {
+    const updateData: {
+      updated_at: string
+      status?: string
+      message?: string
+      processed_count?: number
+    } = {
       updated_at: new Date().toISOString()
     }
     if (status) updateData.status = status

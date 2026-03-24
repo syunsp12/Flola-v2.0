@@ -1,13 +1,60 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
-import { Card, Text, Group, SimpleGrid, ThemeIcon, Stack, RingProgress, Paper, Table, Badge, Grid, rem, Box, Image } from "@mantine/core"
-import { Wallet, TrendingUp, TrendingDown, CreditCard, ArrowRight } from 'lucide-react'
+import { Card, Text, Group, ThemeIcon, Stack, RingProgress, Paper, Table, Badge, Grid, rem, Box, Image } from "@mantine/core"
+import { Wallet, TrendingUp, TrendingDown, ArrowRight } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { format } from 'date-fns'
 import { motion } from 'framer-motion'
 import { getSmartIconUrl, getCardBrandLogo } from '@/lib/utils/icon-helper'
+
+type TransactionAccount = {
+  name?: string
+  icon_url?: string | null
+  card_brand?: string | null
+}
+
+type TransactionCategory = {
+  name?: string
+}
+
+type RecentTransaction = {
+  id: string
+  type: 'income' | 'expense' | 'transfer'
+  description: string
+  date: string
+  amount: number
+  accounts?: TransactionAccount | TransactionAccount[] | null
+  categories?: TransactionCategory | TransactionCategory[] | null
+}
+
+type TooltipPayloadItem = { value: number }
+type CustomTooltipProps = {
+  active?: boolean
+  payload?: TooltipPayloadItem[]
+  label?: string
+}
+
+function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
+  if (active && payload && payload.length) {
+    return (
+      <Paper p="xs" shadow="md" withBorder>
+        <Text size="xs" fw={700} mb={4}>{label}</Text>
+        <Stack gap={2}>
+          <Group gap="xs">
+            <div style={{ width: 8, height: 8, backgroundColor: 'var(--mantine-color-teal-5)', borderRadius: '50%' }} />
+            <Text size="xs" c="dimmed">Income: ¥{payload[0].value.toLocaleString()}</Text>
+          </Group>
+          <Group gap="xs">
+            <div style={{ width: 8, height: 8, backgroundColor: 'var(--mantine-color-red-5)', borderRadius: '50%' }} />
+            <Text size="xs" c="dimmed">Expense: ¥{payload[1].value.toLocaleString()}</Text>
+          </Group>
+        </Stack>
+      </Paper>
+    );
+  }
+  return null;
+}
 
 type DashboardData = {
   netWorth: number
@@ -16,37 +63,10 @@ type DashboardData = {
   monthlyFlowData: { month: string; income: number; expense: number }[]
   categoryRanking: { name: string; value: number }[]
   currentMonthTotalExpense: number
-  recentTransactions: any[]
+  recentTransactions: RecentTransaction[]
 }
 
 export function DashboardView({ data }: { data: DashboardData }) {
-  const [mounted, setOpened] = useState(false)
-
-  useEffect(() => {
-    setOpened(true)
-  }, [])
-
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <Paper p="xs" shadow="md" withBorder>
-          <Text size="xs" fw={700} mb={4}>{label}</Text>
-          <Stack gap={2}>
-            <Group gap="xs">
-              <div style={{ width: 8, height: 8, backgroundColor: 'var(--mantine-color-teal-5)', borderRadius: '50%' }} />
-              <Text size="xs" c="dimmed">Income: ¥{payload[0].value.toLocaleString()}</Text>
-            </Group>
-            <Group gap="xs">
-              <div style={{ width: 8, height: 8, backgroundColor: 'var(--mantine-color-red-5)', borderRadius: '50%' }} />
-              <Text size="xs" c="dimmed">Expense: ¥{payload[1].value.toLocaleString()}</Text>
-            </Group>
-          </Stack>
-        </Paper>
-      );
-    }
-    return null;
-  };
-
   const totalExpense = data.currentMonthTotalExpense || 0;
 
   const container = {
@@ -115,18 +135,16 @@ export function DashboardView({ data }: { data: DashboardData }) {
             <Text size="sm" fw={700} mb="sm" c="dimmed" tt="uppercase">Cash Flow Trend</Text>
             <Paper p="md" radius="md" withBorder style={{ display: 'flex', flexDirection: 'column' }}>
               <div style={{ flex: 1, minHeight: rem(200), minWidth: 0 }}>
-                {mounted && (
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={data.monthlyFlowData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                      <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} dy={10} />
-                      <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(value) => `${value / 10000}万`} />
-                      <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
-                      <Bar dataKey="income" fill="var(--mantine-color-teal-5)" radius={[4, 4, 0, 0]} maxBarSize={40} animationDuration={1500} />
-                      <Bar dataKey="expense" fill="var(--mantine-color-red-5)" radius={[4, 4, 0, 0]} maxBarSize={40} animationDuration={1500} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={data.monthlyFlowData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+                    <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} dy={10} />
+                    <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(value) => `${value / 10000}万`} />
+                    <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
+                    <Bar dataKey="income" fill="var(--mantine-color-teal-5)" radius={[4, 4, 0, 0]} maxBarSize={40} animationDuration={1500} />
+                    <Bar dataKey="expense" fill="var(--mantine-color-red-5)" radius={[4, 4, 0, 0]} maxBarSize={40} animationDuration={1500} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </Paper>
           </div>
@@ -198,16 +216,16 @@ export function DashboardView({ data }: { data: DashboardData }) {
               <Table verticalSpacing="sm" striped highlightOnHover>
                 <Table.Tbody>
                   {data.recentTransactions.map((t) => {
-                    const acc = t.accounts;
+                    const acc = Array.isArray(t.accounts) ? t.accounts[0] : t.accounts;
                     const accountIcon = getSmartIconUrl(acc?.name || '', acc?.icon_url);
-                    const brandLogo = getCardBrandLogo(acc?.card_brand);
+                    const brandLogo = getCardBrandLogo(acc?.card_brand ?? null);
                     
                     return (
                       <Table.Tr key={t.id}>
                         <Table.Td width={60} pl="md">
                           <Box pos="relative" w={28} h={28}>
                             {accountIcon ? (
-                              <Image src={accountIcon} w={28} h={28} radius="xs" />
+                              <Image src={accountIcon} w={28} h={28} radius="xs" alt="account icon" />
                             ) : (
                               <ThemeIcon variant="light" color={t.type === 'income' ? 'teal' : 'red'} radius="md" size={28}>
                                 {t.type === 'income' ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
@@ -227,7 +245,7 @@ export function DashboardView({ data }: { data: DashboardData }) {
                                   boxShadow: 'var(--mantine-shadow-xs)' 
                                 }}
                               >
-                                <Image src={brandLogo} w={12} h={8} fit="contain" />
+                                <Image src={brandLogo} w={12} h={8} fit="contain" alt="card brand" />
                               </Box>
                             )}
                           </Box>

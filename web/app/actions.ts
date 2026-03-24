@@ -11,6 +11,68 @@ type TransactionFilter = {
   endDate?: string
 }
 
+type TransactionUpdateInput = {
+  status: 'pending' | 'confirmed' | 'ignore'
+  amount?: number
+  date?: string
+  description?: string
+  category_id?: number
+  from_account_id?: string
+  to_account_id?: string
+}
+
+type TransactionUpdatePayload = {
+  is_ai_suggested: boolean
+  status: 'pending' | 'confirmed' | 'ignore'
+  user_amount?: number
+  user_date?: string
+  user_description?: string
+  user_category_id?: number
+  user_from_account_id?: string
+  user_to_account_id?: string
+}
+
+type AssetHistoryEntry = {
+  date: string
+  total: number
+  total_invested: number
+  liability: number
+  [key: string]: string | number
+}
+
+type SalarySlipInput = {
+  date: string
+  base_pay: number
+  overtime_pay: number
+  tax: number
+  social_insurance: number
+  net_pay: number
+  to_account_id: string
+  details: Record<string, unknown>
+}
+
+async function assertAdmin() {
+  const supabase = await createClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    throw new Error('Forbidden')
+  }
+
+  const adminEmails = (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map(v => v.trim().toLowerCase())
+    .filter(Boolean)
+
+  const roleFromMetadata = user.app_metadata?.role || user.user_metadata?.role
+  const email = user.email?.toLowerCase()
+  const isAdmin = roleFromMetadata === 'admin' || (!!email && adminEmails.includes(email))
+
+  if (!isAdmin) {
+    throw new Error('Forbidden')
+  }
+}
+
 // --- 1. 取引データの取得 ---
 // --- 1. 取引データの取得 ---
 export async function getTransactions(filter: TransactionFilter = {}) {
@@ -78,11 +140,11 @@ export async function getPendingCount() {
 }
 
 // --- 3. データの承認・更新 ---
-export async function updateTransaction(id: string, updates: any) {
+export async function updateTransaction(id: string, updates: TransactionUpdateInput) {
   const supabase = await createClient()
 
   // ユーザーの変更した情報を保持するためのマッピング
-  const mappedUpdates: any = {
+  const mappedUpdates: TransactionUpdatePayload = {
     is_ai_suggested: false,
     status: updates.status
   }
@@ -174,6 +236,7 @@ export async function updateAssetBalance(accountId: string, amount: number, date
 
 // --- 7. ジョブ状態の取得 ---
 export async function getJobStatuses() {
+  await assertAdmin()
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('job_status')
@@ -186,6 +249,7 @@ export async function getJobStatuses() {
 
 // --- 8. ログの取得 ---
 export async function getSystemLogs() {
+  await assertAdmin()
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('system_logs')
@@ -199,6 +263,7 @@ export async function getSystemLogs() {
 
 // --- 9. カテゴリ操作 ---
 export async function createCategory(name: string, type: 'income' | 'expense', keywords: string[]) {
+  await assertAdmin()
   const supabase = await createClient()
   const { error } = await supabase
     .from('categories')
@@ -211,6 +276,7 @@ export async function createCategory(name: string, type: 'income' | 'expense', k
 }
 
 export async function updateCategory(id: number, name: string, type: 'income' | 'expense', keywords: string[]) {
+  await assertAdmin()
   const supabase = await createClient()
   const { error } = await supabase
     .from('categories')
@@ -224,6 +290,7 @@ export async function updateCategory(id: number, name: string, type: 'income' | 
 }
 
 export async function deleteCategory(id: number) {
+  await assertAdmin()
   const supabase = await createClient()
   const { error } = await supabase
     .from('categories')
@@ -327,6 +394,7 @@ export async function createAccount(data: {
   icon_url?: string | null
   card_brand?: string | null
 }) {
+  await assertAdmin()
   const supabase = await createClient()
   const { error } = await supabase.from('accounts').insert(data)
   if (error) throw new Error(error.message)
@@ -342,6 +410,7 @@ export async function updateAccount(id: string, data: {
   icon_url?: string | null
   card_brand?: string | null
 }) {
+  await assertAdmin()
   const supabase = await createClient()
   const { error } = await supabase.from('accounts').update(data).eq('id', id)
   if (error) throw new Error(error.message)
@@ -351,6 +420,7 @@ export async function updateAccount(id: string, data: {
 }
 
 export async function deleteAccount(id: string) {
+  await assertAdmin()
   const supabase = await createClient()
   const { error } = await supabase.from('accounts').delete().eq('id', id)
   if (error) throw new Error("この口座に関連付けられた取引があるため削除できません")
@@ -412,6 +482,7 @@ export async function requestHistoryFetch(startDate: string, endDate: string) {
 
 // --- 14. 外部ジョブの実行 (GitHub Actions) ---
 export async function triggerJob(jobId: string) {
+  await assertAdmin()
   const GITHUB_TOKEN = process.env.GITHUB_TOKEN
   const REPO_OWNER = process.env.GITHUB_OWNER
   const REPO_NAME = process.env.GITHUB_REPO
@@ -470,6 +541,7 @@ export async function getAssetGroups() {
  * 資産グループの作成
  */
 export async function createAssetGroup(data: { id: string, name: string, color: string, sort_order: number }) {
+  await assertAdmin()
   const supabase = await createClient()
   const { error } = await supabase
     .from('asset_groups')
@@ -485,6 +557,7 @@ export async function createAssetGroup(data: { id: string, name: string, color: 
  * 資産グループの更新
  */
 export async function updateAssetGroup(id: string, updates: { name: string, color: string, sort_order: number }) {
+  await assertAdmin()
   const supabase = await createClient()
 
   // IDは更新せず、表示上の属性のみを更新する
@@ -512,6 +585,7 @@ export async function updateAssetGroup(id: string, updates: { name: string, colo
  * 資産グループの削除
  */
 export async function deleteAssetGroup(id: string) {
+  await assertAdmin()
   const supabase = await createClient()
 
   // 使用中の口座があるかチェック
@@ -617,7 +691,7 @@ export async function getAssetHistory() {
 
     // データの初期化 (マスタに存在する全グループのキーを確実に作成)
 
-    const entry: any = {
+    const entry: AssetHistoryEntry = {
 
       date: `${month}-01`,
 
@@ -633,7 +707,7 @@ export async function getAssetHistory() {
 
     // グループIDの取得
 
-    const groupIds = groups.length > 0 ? groups.map((g: any) => g.id) : ['bank', 'securities', 'pension', 'point', 'wallet']
+    const groupIds = groups.length > 0 ? groups.map((g: { id: string }) => g.id) : ['bank', 'securities', 'pension', 'point', 'wallet']
 
     groupIds.forEach((id: string) => {
 
@@ -701,11 +775,11 @@ export async function getAssetHistory() {
 
 
 
-          entry[typeKey] = Number(entry[typeKey] + currentAmount)
+          entry[typeKey] = Number(entry[typeKey] || 0) + currentAmount
 
 
 
-          entry[`${typeKey}_invested`] = Number(entry[`${typeKey}_invested`] + invested)
+          entry[`${typeKey}_invested`] = Number(entry[`${typeKey}_invested`] || 0) + invested
 
 
 
@@ -717,11 +791,11 @@ export async function getAssetHistory() {
 
 
 
-          entry[fallback] = Number((entry[fallback] || 0) + currentAmount)
+          entry[fallback] = Number(entry[fallback] || 0) + currentAmount
 
 
 
-          entry[`${fallback}_invested`] = Number((entry[`${fallback}_invested`] || 0) + invested)
+          entry[`${fallback}_invested`] = Number(entry[`${fallback}_invested`] || 0) + invested
 
 
 
@@ -757,8 +831,8 @@ export async function getAssetHistory() {
 
 }
 
-import { exec } from 'child_process'
-import { writeFile, unlink } from 'fs/promises'
+import { execFile } from 'child_process'
+import { access, writeFile, unlink } from 'fs/promises'
 import path from 'path'
 import { tmpdir } from 'os'
 
@@ -862,43 +936,73 @@ export async function analyzePayrollPdf(formData: FormData) {
   const tempPath = path.join(tmpdir(), `payroll_${Date.now()}.pdf`)
   await writeFile(tempPath, buffer)
 
-  // Pythonスクリプトの実行パス (.venvを使用)
-  const pythonPath = path.join(process.cwd(), '..', '.venv', 'Scripts', 'python.exe')
   const scriptPath = path.join(process.cwd(), '..', 'collectors', 'payroll_parser.py')
 
-  return new Promise((resolve, reject) => {
-    exec(`"${pythonPath}" "${scriptPath}" "${tempPath}"`, async (error, stdout, stderr) => {
-      // 処理が終わったら一時ファイルを削除
-      await unlink(tempPath).catch(console.error)
+  try {
+    await access(scriptPath)
+  } catch {
+    await unlink(tempPath).catch(console.error)
+    throw new Error('PARSER_SCRIPT_NOT_FOUND')
+  }
 
-      if (error) {
-        console.error('Python Error:', stderr)
-        return reject(new Error('PDFの解析に失敗しました'))
-      }
+  const parserCommands = [process.env.PAYROLL_PYTHON_CMD, 'python3', 'python']
+    .filter((cmd): cmd is string => !!cmd && cmd.trim().length > 0)
 
-      try {
-        const result = JSON.parse(stdout)
-        resolve(result)
-      } catch (e) {
-        reject(new Error('解析結果の読み取りに失敗しました'))
+  if (parserCommands.length === 0) {
+    await unlink(tempPath).catch(console.error)
+    throw new Error('PYTHON_NOT_FOUND')
+  }
+
+  let stdout = ''
+  let lastError: string | null = null
+
+  for (const command of parserCommands) {
+    try {
+      const output = await new Promise<string>((resolve, reject) => {
+        execFile(command, [scriptPath, tempPath], { timeout: 120000 }, (error, out, stderr) => {
+          if (error) {
+            reject(new Error(stderr || error.message))
+            return
+          }
+          resolve(out)
+        })
+      })
+      stdout = output
+      lastError = null
+      break
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        lastError = error.message
+      } else {
+        lastError = 'Unknown parser error'
       }
-    })
-  })
+    }
+  }
+
+  await unlink(tempPath).catch(console.error)
+
+  if (lastError !== null) {
+    console.error('Python Error:', lastError)
+
+    const lowered = lastError.toLowerCase()
+    if (lowered.includes('not found') || lowered.includes('enoent')) {
+      throw new Error('PYTHON_NOT_FOUND')
+    }
+
+    throw new Error('PARSER_EXECUTION_FAILED')
+  }
+
+  try {
+    return JSON.parse(stdout)
+  } catch {
+    throw new Error('PARSER_OUTPUT_INVALID_JSON')
+  }
 }
 
 /**
  * 給与明細データの保存
  */
-export async function saveSalarySlip(data: {
-  date: string,
-  base_pay: number,
-  overtime_pay: number,
-  tax: number,
-  social_insurance: number,
-  net_pay: number,
-  to_account_id: string, // 追加: 入金先口座
-  details: any
-}) {
+export async function saveSalarySlip(data: SalarySlipInput) {
   const supabase = await createClient()
 
   // 1. まず給与振込として transactions テーブルに記録 (親レコード)
@@ -956,7 +1060,7 @@ export async function predictCategories(descriptions: string[]): Promise<Record<
   const categories = await getCategories()
   if (!categories || categories.length === 0) return {}
 
-  const catText = categories.map((c: any) =>
+  const catText = categories.map((c: { id: number, name: string, keywords: string[] | null }) =>
     `ID:${c.id}, Name:${c.name}, Keywords:${c.keywords?.join(',')}`
   ).join('\n')
 
