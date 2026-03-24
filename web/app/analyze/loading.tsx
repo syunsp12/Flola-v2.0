@@ -17,7 +17,7 @@ export default function AnalyzeLoading() {
                     </Group>
 
                     {/* Main Chart Skeleton */}
-                    <Card padding="lg" radius="xl" withBorder>
+                    <Card>
                         <Stack gap="md">
                             <Skeleton height={24} width={150} radius="md" />
                             <Skeleton height={300} radius="lg" className="animate-pulse" />
@@ -26,10 +26,10 @@ export default function AnalyzeLoading() {
 
                     {/* Additional Charts */}
                     <Group grow>
-                        <Card padding="md" radius="lg" withBorder>
+                        <Card>
                             <Skeleton height={180} radius="md" className="animate-pulse" />
                         </Card>
-                        <Card padding="md" radius="lg" withBorder>
+                        <Card>
                             <Skeleton height={180} radius="md" className="animate-pulse" />
                         </Card>
                     </Group>

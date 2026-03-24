@@ -474,32 +474,6 @@ const TransactionList = memo(function TransactionList({
 }: TransactionListProps) {
   return (
     <Stack gap="lg">
-      <style jsx global>{`
-        .editable-field {
-          transition: all 0.2s ease;
-          border-radius: 6px;
-          border-bottom: 1px dashed transparent;
-        }
-        .editable-field:hover {
-          background-color: var(--mantine-color-gray-0);
-          border-bottom-color: var(--mantine-color-gray-4);
-        }
-        .editable-field:active {
-          background-color: var(--mantine-color-gray-1);
-        }
-        .editable-field-amount {
-          transition: all 0.2s ease;
-          border-radius: 8px;
-        }
-        .editable-field-amount:hover {
-          background-color: var(--mantine-color-gray-0);
-          transform: scale(1.02);
-        }
-        .editable-field-amount:active {
-          background-color: var(--mantine-color-gray-1);
-          transform: scale(0.98);
-        }
-      `}</style>
       <AnimatePresence mode="popLayout">
         {transactions.map((t, index) => (
           <TransactionItem

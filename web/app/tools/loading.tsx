@@ -13,7 +13,7 @@ export default function ToolsLoading() {
                     {/* Tool Cards Skeleton */}
                     <Group grow>
                         {[1, 2].map((i) => (
-                            <Card key={i} padding="xl" radius="lg" withBorder className="animate-pulse">
+                            <Card key={i} className="animate-pulse">
                                 <Stack gap="md" align="center">
                                     <Skeleton height={48} width={48} circle />
                                     <Skeleton height={20} width={120} radius="md" />

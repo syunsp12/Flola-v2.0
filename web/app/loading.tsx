@@ -11,7 +11,7 @@ export default function Loading() {
       <PageContainer>
         <Stack gap="lg" className="p-5">
           {/* Net Worth Card Skeleton */}
-          <Card padding="lg" radius="lg" withBorder className="animate-pulse">
+          <Card className="animate-pulse">
             <Stack gap="md">
               <Group justify="space-between">
                 <Skeleton height={12} width={100} radius="xl" />
@@ -40,7 +40,7 @@ export default function Loading() {
           </Grid>
 
           {/* Chart Skeleton */}
-          <Card padding="lg" radius="lg" withBorder className="animate-pulse">
+          <Card className="animate-pulse">
             <Stack gap="md">
               <Group justify="space-between">
                 <Skeleton height={20} width={120} radius="md" />
@@ -54,7 +54,7 @@ export default function Loading() {
           <Stack gap="md">
             <Skeleton height={20} width={100} radius="md" />
             {[1, 2, 3].map((i) => (
-              <Card key={i} padding="md" radius="lg" withBorder className="animate-pulse">
+              <Card key={i} className="animate-pulse">
                 <Group justify="space-between">
                   <Group>
                     <Skeleton height={40} width={40} radius="md" />

@@ -12,7 +12,7 @@ export default function AssetsLoading() {
                 <Stack gap="sm" className="p-5">
                     {/* Account Cards Skeleton */}
                     {[1, 2, 3, 4].map((i) => (
-                        <Card key={i} padding="md" radius="md" withBorder className="animate-pulse">
+                        <Card key={i} className="animate-pulse">
                             <Group justify="space-between" wrap="nowrap">
                                 <Group gap="md">
                                     <Skeleton height={40} width={40} radius="md" />

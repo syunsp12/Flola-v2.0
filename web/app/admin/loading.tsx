@@ -13,7 +13,7 @@ export default function AdminLoading() {
                     {/* Job Status Section */}
                     <Stack gap="md">
                         <Skeleton height={28} width={150} radius="md" />
-                        <Card padding="lg" radius="lg" withBorder>
+                        <Card>
                             <Stack gap="md">
                                 {[1, 2, 3].map((i) => (
                                     <div key={i}>
@@ -31,7 +31,7 @@ export default function AdminLoading() {
                     {/* Settings Section */}
                     <Stack gap="md">
                         <Skeleton height={28} width={120} radius="md" />
-                        <Card padding="lg" radius="lg" withBorder>
+                        <Card>
                             <Stack gap="lg">
                                 {[1, 2].map((i) => (
                                     <Stack key={i} gap="xs" className="animate-pulse">

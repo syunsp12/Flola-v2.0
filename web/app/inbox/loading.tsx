@@ -22,7 +22,7 @@ export default function InboxLoading() {
 
                     {/* Transaction Cards Skeleton */}
                     {[1, 2, 3, 4, 5].map((i) => (
-                        <Card key={i} padding="md" radius="lg" withBorder className="animate-pulse">
+                        <Card key={i} className="animate-pulse">
                             <Stack gap="xs">
                                 <Skeleton height={20} width="70%" radius="md" />
                                 <Skeleton height={16} width="50%" radius="md" />

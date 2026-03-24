@@ -13,7 +13,7 @@ type Props = {
 export function AssetChart({ data }: Props) {
   if (!data || data.length === 0) {
     return (
-      <Card withBorder shadow="sm" radius="lg" className="p-4">
+      <Card className="p-4">
         <Card.Section className="border-b p-4">
           <Text fw={600} size="sm">Asset History</Text>
         </Card.Section>
@@ -25,7 +25,7 @@ export function AssetChart({ data }: Props) {
   }
 
   return (
-    <Card withBorder shadow="sm" radius="lg" className="p-4">
+    <Card className="p-4">
       <Card.Section className="border-b p-4">
         <Text fw={600} size="sm">Asset History</Text>
       </Card.Section>
