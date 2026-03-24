@@ -1,3 +1,5 @@
+import { PDFParse } from 'pdf-parse'
+
 type PayrollParseResult = {
   month?: string
   type?: string
@@ -105,31 +107,23 @@ function extractDetails(text: string) {
 }
 
 export async function parsePayrollPdf(buffer: Buffer, fileName: string): Promise<PayrollParseResult> {
-  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
-  const document = await pdfjs.getDocument({
-    data: new Uint8Array(buffer),
-    useSystemFonts: true,
-    isEvalSupported: false,
-  }).promise
+  const parser = new PDFParse({ data: buffer })
 
-  if (document.numPages < 1) {
-    throw new Error('PARSER_EXTRACTION_FAILED')
-  }
+  try {
+    const parsed = await parser.getText()
+    const text = parsed.text || ''
+    const details = extractDetails(text)
 
-  const page = await document.getPage(1)
-  const textContent = await page.getTextContent()
-  const text = textContent.items
-    .map((item) => ('str' in item ? item.str : ''))
-    .join('\n')
+    if (Object.keys(details).length === 0) {
+      throw new Error('PARSER_EXTRACTION_FAILED')
+    }
 
-  const details = extractDetails(text)
-  if (Object.keys(details).length === 0) {
-    throw new Error('PARSER_EXTRACTION_FAILED')
-  }
-
-  return {
-    month: extractMonth(text),
-    type: classifySlipType(fileName),
-    details,
+    return {
+      month: extractMonth(text),
+      type: classifySlipType(fileName),
+      details,
+    }
+  } finally {
+    await parser.destroy()
   }
 }
