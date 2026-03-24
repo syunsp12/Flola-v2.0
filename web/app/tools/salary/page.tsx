@@ -9,7 +9,6 @@ import {
   Divider,
   Grid,
   Group,
-  Image,
   Modal,
   NumberInput,
   Paper,
@@ -23,7 +22,7 @@ import {
 import { Dropzone, PDF_MIME_TYPE } from '@mantine/dropzone'
 import { useDisclosure } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
-import { ArrowLeft, CalendarDays, Check, FileText, X, ZoomIn } from 'lucide-react'
+import { ArrowLeft, CalendarDays, Check, FileText, Plus, Trash2, X, ZoomIn } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { analyzePayrollPdfVercel, getAccountsWithBalance, saveSalarySlip } from '@/app/actions'
@@ -69,19 +68,6 @@ function getFriendlyPayrollErrorMessage(error: unknown) {
   if (message.includes('PAYROLL_API_FETCH_FAILED')) {
     return '給与明細解析APIの呼び出しに失敗しました。'
   }
-
-  if (message.includes('PARSER_SCRIPT_NOT_FOUND')) {
-    return '給与明細の解析スクリプトが見つかりません。サーバー設定を確認してください。'
-  }
-  if (message.includes('PYTHON_NOT_FOUND')) {
-    return '給与明細解析に必要な Python 実行環境が見つかりません。'
-  }
-  if (message.includes('PARSER_EXECUTION_FAILED')) {
-    return '給与明細の解析処理に失敗しました。PDF の内容または解析環境を確認してください。'
-  }
-  if (message.includes('PARSER_OUTPUT_INVALID_JSON')) {
-    return '給与明細の解析結果を読み取れませんでした。別の PDF で再度お試しください。'
-  }
   if (message.includes('PARSER_EXTRACTION_FAILED')) {
     return 'PDF は読み込めましたが、給与明細として必要な項目を抽出できませんでした。'
   }
@@ -108,6 +94,9 @@ export default function SalaryPage() {
   const [accounts, setAccounts] = useState<AccountOption[]>([])
   const [targetAccountId, setTargetAccountId] = useState<string | null>(null)
   const [previewOpened, { open: openPreview, close: closePreview }] = useDisclosure(false)
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null)
+  const [uploadedFileName, setUploadedFileName] = useState<string>('')
+  const [newFieldName, setNewFieldName] = useState('')
 
   useEffect(() => {
     getAccountsWithBalance()
@@ -121,6 +110,14 @@ export default function SalaryPage() {
         })
       })
   }, [])
+
+  useEffect(() => {
+    return () => {
+      if (pdfPreviewUrl) {
+        URL.revokeObjectURL(pdfPreviewUrl)
+      }
+    }
+  }, [pdfPreviewUrl])
 
   const summary = useMemo(() => {
     const value = (keys: string[], mode: 'sum' | 'max' = 'sum') => {
@@ -138,12 +135,20 @@ export default function SalaryPage() {
   }, [details])
 
   const accountOptions = accounts.map((account) => ({ value: account.id, label: account.name }))
+  const detailEntries = Object.entries(details)
 
   const handleFileUpload = async (files: File[]) => {
     const file = files[0]
     if (!file) return
 
+    if (pdfPreviewUrl) {
+      URL.revokeObjectURL(pdfPreviewUrl)
+    }
+
+    setPdfPreviewUrl(URL.createObjectURL(file))
+    setUploadedFileName(file.name)
     setLoading(true)
+
     const toastId = 'salary-analysis'
     notifications.show({
       id: toastId,
@@ -163,17 +168,15 @@ export default function SalaryPage() {
       }
 
       const parsed = response.data
-      const normalizedDetails = normalizeDetails(parsed.details || {})
-
       setResult(parsed)
-      setDetails(normalizedDetails)
+      setDetails(normalizeDetails(parsed.details || {}))
       setDate(parsed.month || '')
 
       notifications.update({
         id: toastId,
         loading: false,
         title: '解析が完了しました',
-        message: '内容を確認して保存できます。',
+        message: '内容を確認して修正後に保存できます。',
         color: 'green',
         icon: <Check size={18} />,
         autoClose: 2000,
@@ -234,9 +237,45 @@ export default function SalaryPage() {
     setDetails((prev) => ({ ...prev, [key]: Number(value) || 0 }))
   }
 
+  const removeDetail = (key: string) => {
+    setDetails((prev) => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+  }
+
+  const addDetail = () => {
+    const key = newFieldName.trim()
+    if (!key) {
+      notifications.show({ title: '項目名を入力してください', message: '追加する項目名が空です。', color: 'red' })
+      return
+    }
+
+    if (details[key] !== undefined) {
+      notifications.show({ title: '同名の項目が既に存在します', message: '別の項目名を入力してください。', color: 'red' })
+      return
+    }
+
+    setDetails((prev) => ({ ...prev, [key]: 0 }))
+    setNewFieldName('')
+  }
+
+  const resetAnalysis = () => {
+    setResult(null)
+    setDetails({})
+    setDate('')
+    setTargetAccountId(null)
+    setNewFieldName('')
+    if (pdfPreviewUrl) {
+      URL.revokeObjectURL(pdfPreviewUrl)
+      setPdfPreviewUrl(null)
+    }
+  }
+
   return (
     <>
-      <PageHeader title="給与明細分析" subtitle="PDF を解析して収入データとして登録します">
+      <PageHeader title="給与明細分析" subtitle="PDF を解析し、必要に応じて手動修正して保存します">
         <Link href="/admin">
           <ActionIcon variant="light" size="2rem">
             <ArrowLeft size={18} />
@@ -249,7 +288,7 @@ export default function SalaryPage() {
           <Stack gap="xl">
             <Box>
               <Text size="sm" c="dimmed" mb="md">
-                給与明細の PDF をアップロードすると、支給額や控除額を自動で抽出します。
+                給与明細の PDF をアップロードすると、支給額や控除額を抽出します。抽出後は手動で項目を編集できます。
               </Text>
               <Dropzone
                 onDrop={handleFileUpload}
@@ -273,7 +312,7 @@ export default function SalaryPage() {
                       PDF ファイルをドロップ
                     </Text>
                     <Text size="sm" c="dimmed" mt={7}>
-                      またはクリックしてファイルを選択してください
+                      またはクリックして給与明細を選択してください
                     </Text>
                   </Box>
                 </Stack>
@@ -287,15 +326,9 @@ export default function SalaryPage() {
                 <Stack gap="xs">
                   <Group justify="space-between" px="xs">
                     <Text size="xs" fw={800} c="dimmed" tt="uppercase">
-                      PDF プレビュー
+                      PDFプレビュー
                     </Text>
-                    <Button
-                      variant="subtle"
-                      size="compact-xs"
-                      leftSection={<ZoomIn size={12} />}
-                      onClick={openPreview}
-                      disabled={!result.snapshot}
-                    >
+                    <Button variant="subtle" size="compact-xs" leftSection={<ZoomIn size={12} />} onClick={openPreview} disabled={!pdfPreviewUrl}>
                       拡大表示
                     </Button>
                   </Group>
@@ -303,15 +336,18 @@ export default function SalaryPage() {
                     radius="28px"
                     withBorder
                     shadow="sm"
-                    style={{ overflow: 'hidden', cursor: 'zoom-in' }}
-                    onClick={openPreview}
+                    style={{ overflow: 'hidden', minHeight: 420 }}
                   >
-                    {result.snapshot ? (
-                      <Image src={result.snapshot} alt="給与明細プレビュー" />
+                    {pdfPreviewUrl ? (
+                      <iframe
+                        src={pdfPreviewUrl}
+                        title={uploadedFileName || '給与明細PDF'}
+                        style={{ width: '100%', height: 420, border: 0 }}
+                      />
                     ) : (
                       <Box p="xl" ta="center">
                         <Text c="dimmed" size="sm">
-                          この環境ではプレビュー画像は生成せず、テキスト解析のみ行います。
+                          PDF プレビューは利用できません。
                         </Text>
                       </Box>
                     )}
@@ -372,15 +408,31 @@ export default function SalaryPage() {
                         </Box>
                       </SimpleGrid>
 
-                      <Divider label="抽出項目の確認・補正" labelPosition="center" my="sm" />
+                      <Divider label="抽出項目の確認・修正" labelPosition="center" my="sm" />
+
+                      <Group align="flex-end" grow>
+                        <TextInput
+                          label="項目を追加"
+                          placeholder="例: 通勤手当"
+                          value={newFieldName}
+                          onChange={(event) => setNewFieldName(event.currentTarget.value)}
+                        />
+                        <Button leftSection={<Plus size={16} />} onClick={addDetail}>
+                          項目追加
+                        </Button>
+                      </Group>
 
                       <ScrollArea h={320} offsetScrollbars>
                         <Stack gap="xs">
-                          {Object.entries(details).map(([key, value]) => (
+                          {detailEntries.map(([key, value]) => (
                             <Group key={key} justify="space-between" wrap="nowrap" gap="sm">
-                              <Text size="xs" fw={700} style={{ flex: 1 }}>
-                                {key}
-                              </Text>
+                              <TextInput
+                                value={key}
+                                readOnly
+                                size="xs"
+                                styles={{ input: { fontWeight: 700 } }}
+                                style={{ flex: 1 }}
+                              />
                               <NumberInput
                                 size="xs"
                                 w={140}
@@ -390,14 +442,22 @@ export default function SalaryPage() {
                                 prefix="¥ "
                                 styles={{ input: { fontWeight: 700, textAlign: 'right' } }}
                               />
+                              <ActionIcon variant="light" color="red" onClick={() => removeDetail(key)} aria-label={`${key} を削除`}>
+                                <Trash2 size={16} />
+                              </ActionIcon>
                             </Group>
                           ))}
+                          {detailEntries.length === 0 && (
+                            <Text size="sm" c="dimmed" ta="center" py="md">
+                              抽出項目がありません。必要な項目を手動で追加してください。
+                            </Text>
+                          )}
                         </Stack>
                       </ScrollArea>
                     </Stack>
 
                     <Group grow mt="xl">
-                      <Button variant="light" color="gray" onClick={() => setResult(null)} disabled={loading}>
+                      <Button variant="light" color="gray" onClick={resetAnalysis} disabled={loading}>
                         やり直す
                       </Button>
                       <Button onClick={handleSave} loading={loading} leftSection={<Check size={18} />} disabled={!targetAccountId}>
@@ -413,15 +473,19 @@ export default function SalaryPage() {
       </PageContainer>
 
       <Modal opened={previewOpened} onClose={closePreview} fullScreen radius={0} transitionProps={{ transition: 'fade', duration: 200 }}>
-        <ScrollArea h="100vh">
-          <Box p="xl" style={{ display: 'flex', justifyContent: 'center' }}>
-            <Image
-              src={result?.snapshot}
-              alt="給与明細の全画面プレビュー"
-              style={{ maxWidth: '100%', height: 'auto', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}
+        <Box h="100vh" p="md">
+          {pdfPreviewUrl ? (
+            <iframe
+              src={pdfPreviewUrl}
+              title={uploadedFileName || '給与明細PDF'}
+              style={{ width: '100%', height: '100%', border: 0 }}
             />
-          </Box>
-        </ScrollArea>
+          ) : (
+            <Box p="xl" ta="center">
+              <Text c="dimmed">PDF プレビューは利用できません。</Text>
+            </Box>
+          )}
+        </Box>
       </Modal>
     </>
   )
